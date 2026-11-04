@@ -63,6 +63,22 @@
                                     Visibility="{Binding CanRegister, Converter={StaticResource BoolToVisibility}}" Margin="0,0,8,0" />
                             <Button Content="Refresh" Command="{Binding RefreshCommand}" />
                         </StackPanel>
+                        <!-- Unstake from the master key, and withdraw once it's released -->
+                        <StackPanel Margin="0,14,0,0" Visibility="{Binding CanUnstake, Converter={StaticResource BoolToVisibility}}">
+                            <TextBlock Style="{StaticResource SectionTitle}" Margin="0,0,0,6" Text="Unstake" />
+                            <StackPanel Orientation="Horizontal">
+                                <TextBox Width="120" Text="{Binding UnstakeAmount, UpdateSourceTrigger=PropertyChanged}"
+                                         IsEnabled="{Binding UnstakeEverything, Converter={StaticResource InverseBool}}" />
+                                <TextBlock Style="{StaticResource FieldLabel}" Margin="8,6,16,6" Text="ꜩ" />
+                                <CheckBox Content="Everything" VerticalAlignment="Center" IsChecked="{Binding UnstakeEverything}" />
+                                <Button Content="Unstake" Margin="16,0,0,0" Command="{Binding UnstakeCommand}" />
+                            </StackPanel>
+                            <TextBlock Style="{StaticResource Hint}" Margin="0,6,0,0" Text="{Binding UnstakeHint}" />
+                        </StackPanel>
+                        <Button HorizontalAlignment="Left" Margin="0,12,0,0" Style="{DynamicResource AccentButtonStyle}"
+                                Content="{Binding FinalizeLabel}" Command="{Binding FinalizeUnstakeCommand}"
+                                Visibility="{Binding CanFinalize, Converter={StaticResource BoolToVisibility}}"
+                                ToolTip="Moves tez that have finished unstaking to the spendable balance (octez-client finalize unstake)." />
                         <TextBlock Style="{StaticResource ErrorText}" Margin="0,8,0,0" Text="{Binding Errors}"
                                    Visibility="{Binding Errors, Converter={StaticResource NullToCollapsed}}" />
                         <!-- Consensus key: commands to run from the wallet holding the master key -->

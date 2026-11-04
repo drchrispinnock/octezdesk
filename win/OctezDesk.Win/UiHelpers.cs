@@ -53,6 +53,14 @@ public sealed class NullToCollapsedConverter : IValueConverter
         => throw new NotSupportedException();
 }
 
+/// <summary>true → false and back, e.g. to disable a field while a checkbox is ticked.</summary>
+public sealed class InverseBoolConverter : IValueConverter
+{
+    public object Convert(object? value, Type targetType, object parameter, CultureInfo culture) => value is not true;
+
+    public object ConvertBack(object value, Type targetType, object parameter, CultureInfo culture) => value is not true;
+}
+
 /// <summary>KeyType → "tz4 (BLS)" etc.</summary>
 public sealed class KeyTypeLabelConverter : IValueConverter
 {

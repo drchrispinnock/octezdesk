@@ -132,6 +132,50 @@ public class FundingTests
         Assert.True(await new StakeStep(Account(Chain("1", "6000000000")), new FundingSettings()).IsDoneAsync(default));
     }
 
+    [Theory]
+    [InlineData("1000", 1_000_000_000L)]
+    [InlineData("0.5", 500_000L)]
+    [InlineData("1,000.000001", 1_000_000_001L)]
+    [InlineData(" 6000 ꜩ ", 6_000_000_000L)]
+    public void Parses_tez_amounts(string text, long mutez) => Assert.Equal(mutez, TezAmount.TryParse(text));
+
+    [Theory]
+    [InlineData("")]
+    [InlineData("0")]
+    [InlineData("-5")]
+    [InlineData("1.0000001")] // below a mutez
+    [InlineData("abc")]
+    public void Rejects_bad_tez_amounts(string text) => Assert.Null(TezAmount.TryParse(text));
+
+    [Fact]
+    public void Formats_tez_for_octez_client()
+    {
+        Assert.Equal("6000", TezAmount.Format(6_000_000_000));
+        Assert.Equal("0.000001", TezAmount.Format(1));
+        Assert.Equal("1.5", TezAmount.Format(1_500_000));
+    }
+
+    [Fact]
+    public void Cannot_unstake_more_than_is_staked()
+    {
+        Assert.Null(TezAmount.ValidateUnstake("6000", 6_000_760_670));
+        Assert.NotNull(TezAmount.ValidateUnstake("6001", 6_000_760_670));
+        Assert.NotNull(TezAmount.ValidateUnstake("nope", 6_000_760_670));
+    }
+
+    [Fact]
+    public async Task Unstakes_an_amount_or_everything_then_finalizes()
+    {
+        var host = new FakeHost();
+        var client = new OctezClient(host);
+        await client.UnstakeAsync("baker", 1_500_000);
+        await client.UnstakeAsync("baker", null);
+        await client.FinalizeUnstakeAsync("baker");
+        Assert.True(host.Ran("octez-client", "unstake", "1.5", "for", "baker"));
+        Assert.True(host.Ran("octez-client", "unstake", "everything", "for", "baker"));
+        Assert.True(host.Ran("octez-client", "finalize", "unstake", "for", "baker"));
+    }
+
     [Fact]
     public void Reads_the_companion_key_from_the_delegate()
     {

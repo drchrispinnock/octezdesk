@@ -4,6 +4,35 @@ using OctezDesk.Core.Hosting;
 
 namespace OctezDesk.Core.Octez;
 
+/// <summary>Tez amounts as octez-client takes them (<c>DDDDDDD.DDDDDD</c>), and as people type them.</summary>
+public static class TezAmount
+{
+    public const long MutezPerTez = 1_000_000;
+
+    /// <summary>e.g. 6000000000 → "6000", 1500000 → "1.5".</summary>
+    public static string Format(long mutez)
+        => (mutez / (decimal)MutezPerTez).ToString("0.######", System.Globalization.CultureInfo.InvariantCulture);
+
+    /// <summary>Parses a positive amount in tez with at most 6 decimals ("1,000.5" is accepted); null if it isn't one.</summary>
+    public static long? TryParse(string? text)
+    {
+        if (string.IsNullOrWhiteSpace(text)) return null;
+        var s = text.Trim().Replace(",", "").Replace("ꜩ", "").Trim();
+        if (!decimal.TryParse(s, System.Globalization.NumberStyles.AllowDecimalPoint, System.Globalization.CultureInfo.InvariantCulture, out var tez))
+            return null;
+        var mutez = tez * MutezPerTez;
+        return tez > 0 && mutez == decimal.Truncate(mutez) && mutez <= long.MaxValue ? (long)mutez : null;
+    }
+
+    /// <summary>Why an unstake of <paramref name="text"/> can't go ahead, or null if it can.</summary>
+    public static string? ValidateUnstake(string? text, long stakedMutez)
+    {
+        if (TryParse(text) is not { } mutez) return "Enter an amount in tez, for example 1000 or 0.5.";
+        if (mutez > stakedMutez) return $"Only {Format(stakedMutez)} ꜩ is staked.";
+        return null;
+    }
+}
+
 /// <summary>Tezos implicit account types, by address prefix.</summary>
 public enum KeyType
 {
@@ -94,6 +123,18 @@ public sealed class OctezClient(IOctezHost host)
             : ["register", "key", alias, "as", "delegate", "--companion-key", companionAlias];
         (await RunAsync(args, ct, log)).EnsureSuccess($"Registering '{alias}' as a delegate");
     }
+
+    /// <summary>
+    /// Unstakes <paramref name="mutez"/> from <paramref name="alias"/>'s stake, or everything if null.
+    /// The tez stay frozen for a few cycles, then need <see cref="FinalizeUnstakeAsync"/>.
+    /// </summary>
+    public async Task UnstakeAsync(string alias, long? mutez, Action<string>? log = null, CancellationToken ct = default)
+        => (await RunAsync(["unstake", mutez is { } m ? TezAmount.Format(m) : "everything", "for", alias], ct, log))
+            .EnsureSuccess($"Unstaking for '{alias}'");
+
+    /// <summary>Moves <paramref name="alias"/>'s finalizable unstaked tez to its spendable balance.</summary>
+    public async Task FinalizeUnstakeAsync(string alias, Action<string>? log = null, CancellationToken ct = default)
+        => (await RunAsync(["finalize", "unstake", "for", alias], ct, log)).EnsureSuccess($"Finalizing the unstake for '{alias}'");
 
     /// <summary>Stakes <paramref name="tez"/> ꜩ from <paramref name="alias"/>'s own balance.</summary>
     public async Task StakeAsync(string alias, long tez, Action<string>? log = null, CancellationToken ct = default)

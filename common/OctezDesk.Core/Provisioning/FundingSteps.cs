@@ -34,7 +34,11 @@ public sealed class MasterAccount(IOctezHost host, NodeService node, OctezClient
             var rpc = await RpcAsync(ct);
             return new MasterAccountStatus(
                 address, await rpc.GetBalanceAsync(address, ct), await rpc.GetStakedBalanceAsync(address, ct),
-                await rpc.TryGetDelegateAsync(address, ct));
+                await rpc.TryGetDelegateAsync(address, ct))
+            {
+                UnstakedFrozenMutez = await rpc.GetUnstakedFrozenBalanceAsync(address, ct),
+                UnstakedFinalizableMutez = await rpc.GetUnstakedFinalizableBalanceAsync(address, ct),
+            };
         }
         catch (Exception ex) when (ex is HttpRequestException or System.Text.Json.JsonException or FormatException) { return null; }
     }
@@ -44,6 +48,20 @@ public sealed class MasterAccount(IOctezHost host, NodeService node, OctezClient
     {
         await client.WaitForBootstrappedAsync(log, ct);
         await client.RegisterDelegateAsync(BakingKeyService.MasterAlias, withCompanion ? BakingKeyService.CompanionAlias : null, log, ct);
+    }
+
+    /// <summary>Unstakes <paramref name="mutez"/> from the master key's stake (null: everything), once the node is bootstrapped.</summary>
+    public async Task UnstakeAsync(long? mutez, Action<string>? log = null, CancellationToken ct = default)
+    {
+        await client.WaitForBootstrappedAsync(log, ct);
+        await client.UnstakeAsync(BakingKeyService.MasterAlias, mutez, log, ct);
+    }
+
+    /// <summary>Moves the master key's finalizable unstaked tez to its spendable balance.</summary>
+    public async Task FinalizeUnstakeAsync(Action<string>? log = null, CancellationToken ct = default)
+    {
+        await client.WaitForBootstrappedAsync(log, ct);
+        await client.FinalizeUnstakeAsync(BakingKeyService.MasterAlias, log, ct);
     }
 
     /// <summary>Spendable plus staked, in mutez; null if the node can't be asked.</summary>
@@ -62,6 +80,12 @@ public sealed class MasterAccount(IOctezHost host, NodeService node, OctezClient
 public sealed record MasterAccountStatus(string Address, long BalanceMutez, long StakedMutez, DelegateInfo? Delegate)
 {
     public bool IsDelegate => Delegate is not null;
+
+    /// <summary>Unstaked, still frozen for a few cycles.</summary>
+    public long UnstakedFrozenMutez { get; init; }
+
+    /// <summary>Unstaked and no longer frozen: <c>finalize unstake</c> makes it spendable.</summary>
+    public long UnstakedFinalizableMutez { get; init; }
 }
 
 /// <summary>
