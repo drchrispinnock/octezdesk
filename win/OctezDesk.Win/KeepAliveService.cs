@@ -43,6 +43,17 @@ public static class KeepAliveService
             using (stop) stop.Set();
     }
 
+    /// <summary>
+    /// <see cref="RequestStop"/>, then waits (up to <paramref name="timeout"/>) for the helper to
+    /// exit, so that its exe can be replaced and a new helper can take the mutex.
+    /// </summary>
+    public static void StopAndWait(TimeSpan timeout)
+    {
+        RequestStop();
+        var deadline = DateTime.UtcNow + timeout;
+        while (IsRunning() && DateTime.UtcNow < deadline) Thread.Sleep(100);
+    }
+
     public static bool IsAutostartRegistered()
     {
         using var key = Registry.CurrentUser.OpenSubKey(RunKeyPath);

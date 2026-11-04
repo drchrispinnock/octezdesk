@@ -44,7 +44,7 @@ public partial class DashboardViewModel(MainViewModel main) : ObservableObject, 
 
 
     [ObservableProperty]
-    [NotifyCanExecuteChangedFor(nameof(UpgradeCommand), nameof(RestartCommand), nameof(ShutdownCommand), nameof(SetupWizardCommand))]
+    [NotifyCanExecuteChangedFor(nameof(UpgradeCommand), nameof(RestartCommand), nameof(ShutdownCommand), nameof(SetupWizardCommand), nameof(CheckForUpdatesCommand))]
     private bool _isBusy;
 
     [ObservableProperty] private string? _busyText;
@@ -56,7 +56,54 @@ public partial class DashboardViewModel(MainViewModel main) : ObservableObject, 
         _ = PollLoopAsync(_cts.Token);
         SelectedLogTab = NodeLog;
         foreach (var tab in LogTabs) tab.Start(_cts.Token);
+        _ = UpdateLoopAsync(_cts.Token);
     }
+
+    private static readonly TimeSpan UpdateInterval = TimeSpan.FromHours(6);
+
+    /// <summary>e.g. "OctezDesk 0.2.0", shown in the footer.</summary>
+    public string AppVersionText => $"OctezDesk {Services.Updater.CurrentVersion}" + (Services.Updater.IsInstalled ? "" : " (development build: no updates)");
+
+    /// <summary>Set once an update is downloaded: "OctezDesk 0.3.0 is ready to install."</summary>
+    [ObservableProperty] private string? _updateReadyText;
+
+    /// <summary>Checks at start and every few hours; downloads in the background. Closing the window installs it.</summary>
+    private async Task UpdateLoopAsync(CancellationToken ct)
+    {
+        if (!Services.Updater.IsInstalled) return;
+        using var timer = new PeriodicTimer(UpdateInterval);
+        do
+        {
+            try { ShowUpdate(await Services.Updater.CheckAndDownloadAsync(ct)); }
+            catch (OperationCanceledException) when (ct.IsCancellationRequested) { return; }
+            catch (Exception) { } // offline, rate-limited…: try again later
+        }
+        while (await WaitAsync(timer, ct));
+    }
+
+    private void ShowUpdate(string? version)
+        => UpdateReadyText = version is null ? null
+            : $"OctezDesk {version} is ready to install. Restart now, or it installs when you close OctezDesk. The node keeps running.";
+
+    [RelayCommand(CanExecute = nameof(NotBusy))]
+    private Task CheckForUpdates() => RunActionAsync("Checking for updates…", async () =>
+    {
+        if (!Services.Updater.IsInstalled)
+        {
+            ShowMessage("This copy of OctezDesk wasn't installed with Setup.exe, so it doesn't update itself.");
+            return;
+        }
+        var version = await Services.Updater.CheckAndDownloadAsync();
+        ShowUpdate(version);
+        if (version is null) ShowMessage($"OctezDesk {Services.Updater.CurrentVersion} is the latest version.");
+    });
+
+    private static void ShowMessage(string text)
+        => Application.Current.Dispatcher.Invoke(() => MessageBox.Show(text, "OctezDesk", MessageBoxButton.OK, MessageBoxImage.Information));
+
+    /// <summary>Restarts OctezDesk into the downloaded version.</summary>
+    [RelayCommand]
+    private void RestartToUpdate() => Services.Updater.ApplyAndRestart();
 
     private async Task LoadNetworkLabelAsync()
     {
