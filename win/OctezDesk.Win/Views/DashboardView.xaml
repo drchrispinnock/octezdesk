@@ -1,46 +1,87 @@
 <UserControl x:Class="OctezDesk.Win.Views.DashboardView"
              xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+    <UserControl.Resources>
+        <!-- One row per service: dot, name, status, detail -->
+        <Style x:Key="ServiceName" TargetType="TextBlock">
+            <Setter Property="FontSize" Value="15" />
+            <Setter Property="FontWeight" Value="SemiBold" />
+            <Setter Property="Width" Value="110" />
+            <Setter Property="VerticalAlignment" Value="Top" />
+        </Style>
+        <Style x:Key="Dot" TargetType="Ellipse">
+            <Setter Property="Width" Value="14" />
+            <Setter Property="Height" Value="14" />
+            <Setter Property="Margin" Value="0,4,14,0" />
+            <Setter Property="VerticalAlignment" Value="Top" />
+        </Style>
+    </UserControl.Resources>
+
     <DockPanel>
-        <DockPanel DockPanel.Dock="Top" Margin="0,0,0,16">
-            <Menu DockPanel.Dock="Right" Background="Transparent" VerticalAlignment="Top">
-                <MenuItem Header="☰" FontSize="18" ToolTip="Menu">
-                    <MenuItem Header="Upgrade" Command="{Binding UpgradeCommand}" />
-                    <MenuItem Header="Reconfigure" Command="{Binding ReconfigureCommand}" ToolTip="Coming soon" />
+        <!-- Header: icon, title, network badge, burger menu -->
+        <DockPanel DockPanel.Dock="Top" Margin="0,0,0,20">
+            <Menu DockPanel.Dock="Right" Background="Transparent" VerticalAlignment="Center">
+                <MenuItem Header="☰" FontSize="18" Padding="10,4" ToolTip="Menu">
+                    <MenuItem Header="Upgrade Octez" Command="{Binding UpgradeCommand}" />
+                    <MenuItem Header="Reconfigure…" Command="{Binding ReconfigureCommand}" ToolTip="Coming soon" />
                     <MenuItem Header="Restart node" Command="{Binding RestartCommand}" />
-                    <Separator />
                     <MenuItem Header="Shut down node" Command="{Binding ShutdownCommand}" />
                     <Separator />
                     <MenuItem Header="Keep node running after sign-in" IsCheckable="True"
                               IsChecked="{Binding StartAtSignIn}"
                               ToolTip="Starts the OctezDesk background helper when you sign in to Windows, so the node runs after a reboot." />
+                    <Separator />
                     <MenuItem Header="Exit OctezDesk" Command="{Binding ExitCommand}"
                               ToolTip="Closes this window. The node keeps running." />
                 </MenuItem>
             </Menu>
-            <TextBlock Style="{StaticResource PageTitle}" Margin="0" Text="OctezDesk" />
+            <Image Source="{StaticResource AppIcon}" Width="32" Height="32" Margin="0,0,12,0" />
+            <TextBlock Style="{StaticResource PageTitle}" Margin="0" VerticalAlignment="Center" Text="OctezDesk" />
+            <Border Margin="14,0,0,0" Padding="10,3" CornerRadius="10" VerticalAlignment="Center" HorizontalAlignment="Left"
+                    Background="{DynamicResource SubtleFillColorSecondaryBrush}"
+                    Visibility="{Binding NetworkLabel, Converter={StaticResource NullToCollapsed}}">
+                <TextBlock FontSize="12" Text="{Binding NetworkLabel}" />
+            </Border>
         </DockPanel>
 
-        <Grid DockPanel.Dock="Top" Margin="0,0,0,8">
-            <Grid.ColumnDefinitions>
-                <ColumnDefinition Width="90" />
-                <ColumnDefinition Width="*" />
-                <ColumnDefinition Width="Auto" />
-            </Grid.ColumnDefinitions>
-            <TextBlock FontWeight="SemiBold" Text="Node" VerticalAlignment="Top" />
-            <StackPanel Grid.Column="1">
-                <TextBlock Text="{Binding NodeSummary}" />
-                <TextBlock Foreground="Gray" Text="{Binding NodeDetails}" />
-            </StackPanel>
-            <Ellipse Grid.Column="2" Width="16" Height="16" VerticalAlignment="Top" Margin="0,2,0,0"
-                     Fill="{Binding NodeLevel, Converter={StaticResource HealthBrush}}" />
-        </Grid>
-        <!-- DAL node and baker rows come with later objectives. -->
+        <TextBlock DockPanel.Dock="Bottom" Style="{StaticResource Hint}" Margin="0,10,0,0"
+                   Text="The node keeps running in the background when you close OctezDesk." />
 
-        <TextBlock DockPanel.Dock="Bottom" Foreground="Gray" Margin="0,8,0,0"
-                   Text="The node keeps running in the background when you close OctezDesk (until you sign out, unless 'Keep node running after sign-in' is on)." TextWrapping="Wrap" />
-        <TextBlock DockPanel.Dock="Top" Foreground="Gray" Margin="0,0,0,8" Text="{Binding BusyText}" />
-        <TextBlock DockPanel.Dock="Top" FontWeight="SemiBold" Text="Logs" Margin="0,8,0,4" />
+        <!-- Services -->
+        <Border DockPanel.Dock="Top" Style="{StaticResource Card}">
+            <StackPanel>
+                <DockPanel>
+                    <Ellipse Style="{StaticResource Dot}" Fill="{Binding NodeLevel, Converter={StaticResource HealthBrush}}" />
+                    <TextBlock Style="{StaticResource ServiceName}" Text="Node" />
+                    <StackPanel>
+                        <TextBlock FontSize="15" Text="{Binding NodeSummary}" />
+                        <TextBlock Style="{StaticResource Hint}" Margin="0,2,0,0" Text="{Binding NodeDetails}" />
+                    </StackPanel>
+                </DockPanel>
+                <Separator Margin="0,12" />
+                <DockPanel Opacity="0.6">
+                    <Ellipse Style="{StaticResource Dot}" Fill="{Binding NotSetUp, Converter={StaticResource HealthBrush}}" />
+                    <TextBlock Style="{StaticResource ServiceName}" Text="DAL node" />
+                    <TextBlock Style="{StaticResource Hint}" FontSize="14" Text="Not set up — coming in a later version" />
+                </DockPanel>
+                <Separator Margin="0,12" />
+                <DockPanel Opacity="0.6">
+                    <Ellipse Style="{StaticResource Dot}" Fill="{Binding NotSetUp, Converter={StaticResource HealthBrush}}" />
+                    <TextBlock Style="{StaticResource ServiceName}" Text="Baker" />
+                    <TextBlock Style="{StaticResource Hint}" FontSize="14" Text="Not set up — coming in a later version" />
+                </DockPanel>
+            </StackPanel>
+        </Border>
+
+        <TextBlock DockPanel.Dock="Top" Margin="0,0,0,8" Text="{Binding BusyText}"
+                   Foreground="{DynamicResource AccentTextFillColorPrimaryBrush}"
+                   Visibility="{Binding BusyText, Converter={StaticResource NullToCollapsed}}" />
+
+        <!-- Log -->
+        <DockPanel DockPanel.Dock="Top" Margin="0,4,0,6">
+            <CheckBox DockPanel.Dock="Right" Content="Show routine messages" IsChecked="{Binding ShowRoutineLog}" />
+            <TextBlock Style="{StaticResource SectionTitle}" Margin="0" VerticalAlignment="Center" Text="Node log" />
+        </DockPanel>
         <ListBox Style="{StaticResource LogList}" ItemsSource="{Binding Log.Lines}" />
     </DockPanel>
 </UserControl>

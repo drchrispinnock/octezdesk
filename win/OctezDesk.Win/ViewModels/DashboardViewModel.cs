@@ -1,7 +1,9 @@
+using System.Text.RegularExpressions;
 using System.Windows;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using OctezDesk.Core.Health;
+using OctezDesk.Core.Octez;
 
 namespace OctezDesk.Win.ViewModels;
 
@@ -9,15 +11,38 @@ namespace OctezDesk.Win.ViewModels;
 public partial class DashboardViewModel(MainViewModel main) : ObservableObject, IDisposable
 {
     private static readonly TimeSpan PollInterval = TimeSpan.FromSeconds(5);
+
+    /// <summary>
+    /// Node log lines hidden unless "Show routine messages" is on: per-peer block fetching, and the
+    /// indented continuation lines of harmless event-loop errors.
+    /// </summary>
+    private static readonly Regex RoutineLogLine = new(
+        @"fetching branch of|fetching operations|Failed to send event|^\s", RegexOptions.Compiled);
+
     private readonly CancellationTokenSource _cts = new();
+    private CancellationTokenSource? _logCts;
     private AppServices Services => main.Services;
 
-    public LogBuffer Log { get; } = new();
+    public LogBuffer Log { get; } = new(filter: line => !RoutineLogLine.IsMatch(line));
 
     /// <summary>Null until the first check completes (grey dot).</summary>
     [ObservableProperty] private HealthLevel? _nodeLevel;
     [ObservableProperty] private string _nodeSummary = "Checking…";
     [ObservableProperty] private string _nodeDetails = "";
+
+    /// <summary>e.g. "Shadownet · rolling", from what OctezDesk configured.</summary>
+    [ObservableProperty] private string? _networkLabel;
+
+    /// <summary>Grey dot for services that are not set up yet.</summary>
+    public HealthLevel? NotSetUp => null;
+
+    [ObservableProperty] private bool _showRoutineLog;
+
+    partial void OnShowRoutineLogChanged(bool value)
+    {
+        Log.Filter = value ? null : line => !RoutineLogLine.IsMatch(line);
+        RestartLogFollow();
+    }
 
     [ObservableProperty]
     [NotifyCanExecuteChangedFor(nameof(UpgradeCommand), nameof(RestartCommand), nameof(ShutdownCommand))]
@@ -28,8 +53,30 @@ public partial class DashboardViewModel(MainViewModel main) : ObservableObject, 
     public void Start()
     {
         KeepAliveService.EnsureRunning();
+        _ = LoadNetworkLabelAsync();
         _ = PollLoopAsync(_cts.Token);
-        _ = FollowLogLoopAsync(_cts.Token);
+        RestartLogFollow();
+    }
+
+    private async Task LoadNetworkLabelAsync()
+    {
+        try
+        {
+            if (await Services.Node.GetConfiguredSettingsAsync(_cts.Token) is { } s)
+            {
+                var network = TezosNetwork.All.FirstOrDefault(n => n.Id == s.Network)?.DisplayName ?? s.Network;
+                NetworkLabel = $"{network} · {s.HistoryMode}";
+            }
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException) { }
+    }
+
+    private void RestartLogFollow()
+    {
+        _logCts?.Cancel();
+        Log.Clear();
+        _logCts = CancellationTokenSource.CreateLinkedTokenSource(_cts.Token);
+        _ = FollowLogLoopAsync(_logCts.Token);
     }
 
     private async Task PollLoopAsync(CancellationToken ct)
@@ -66,7 +113,8 @@ public partial class DashboardViewModel(MainViewModel main) : ObservableObject, 
         var o = health.Observation;
         var parts = new List<string>();
         if (o.HeadLevel is { } level) parts.Add($"Level {level:N0}");
-        if (o.HeadTimestamp is { } ts) parts.Add($"head {ts.ToLocalTime():g}");
+        if (o.HeadTimestamp is { } ts)
+            parts.Add($"last block {HealthEvaluator.Describe(DateTimeOffset.UtcNow - ts)} ago");
         if (o.PeerCount is { } peers) parts.Add($"{peers} peers");
         if (o.Version is { } version) parts.Add($"Octez {version}");
         NodeDetails = string.Join(" · ", parts);

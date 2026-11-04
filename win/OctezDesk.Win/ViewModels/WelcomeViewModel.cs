@@ -1,5 +1,6 @@
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
+using OctezDesk.Core.Health;
 using OctezDesk.Core.Wsl;
 
 namespace OctezDesk.Win.ViewModels;
@@ -11,13 +12,21 @@ public partial class WelcomeViewModel : ObservableObject
 
     [ObservableProperty]
     [NotifyCanExecuteChangedFor(nameof(NextCommand))]
-    [NotifyPropertyChangedFor(nameof(NeedsWsl))]
+    [NotifyPropertyChangedFor(nameof(NeedsWsl), nameof(WslLevel))]
     private bool? _wslInstalled;
 
     [ObservableProperty]
     private string _status = "Checking for the Windows Subsystem for Linux…";
 
     public bool NeedsWsl => WslInstalled == false;
+
+    /// <summary>Status dot: grey while checking, green when installed, yellow when missing.</summary>
+    public HealthLevel? WslLevel => WslInstalled switch
+    {
+        true => HealthLevel.Green,
+        false => HealthLevel.Yellow,
+        null => null,
+    };
 
     public WelcomeViewModel(MainViewModel main)
     {
@@ -32,8 +41,8 @@ public partial class WelcomeViewModel : ObservableObject
         Status = "Checking for the Windows Subsystem for Linux…";
         WslInstalled = await _main.Services.Wsl.IsWslInstalledAsync();
         Status = WslInstalled == true
-            ? "WSL is installed. OctezDesk will create its own Linux environment for Octez."
-            : "OctezDesk runs Octez inside the Windows Subsystem for Linux (WSL), which is not installed yet.";
+            ? "Installed. OctezDesk will create its own Linux environment and won't touch any others you have."
+            : "Octez runs inside WSL, which isn't installed yet. Installing it needs administrator approval and may need a restart.";
     }
 
     [RelayCommand]

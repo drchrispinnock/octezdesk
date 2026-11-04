@@ -73,6 +73,15 @@ public class HealthEvaluatorTests
             HealthEvaluator.Evaluate(Healthy with { Bootstrapped = bootstrapped, SyncState = syncState }).Level);
 
     [Fact]
+    public void Syncing_summary_says_how_far_behind()
+    {
+        var now = DateTimeOffset.Parse("2026-11-04T12:00:00Z");
+        var h = HealthEvaluator.Evaluate(
+            Healthy with { Bootstrapped = false, SyncState = "unsynced", HeadTimestamp = now.AddMinutes(-7) }, now);
+        Assert.Equal("Catching up — 7 min behind", h.Summary);
+    }
+
+    [Fact]
     public void No_peers_is_yellow()
         => Assert.Equal(HealthLevel.Yellow, HealthEvaluator.Evaluate(Healthy with { PeerCount = 0 }).Level);
 

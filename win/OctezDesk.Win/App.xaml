@@ -4,7 +4,10 @@
              xmlns:vm="clr-namespace:OctezDesk.Win.ViewModels"
              xmlns:views="clr-namespace:OctezDesk.Win.Views"
              xmlns:local="clr-namespace:OctezDesk.Win"
+             ThemeMode="System"
              ShutdownMode="OnMainWindowClose">
+    <!-- ThemeMode="System": WPF's Windows 11 (Fluent) theme, following the system light/dark setting.
+         Colours below use the theme's brushes via DynamicResource so both modes work. -->
     <Application.Resources>
         <!-- Each page view model is rendered by its view -->
         <DataTemplate DataType="{x:Type vm:WelcomeViewModel}"><views:WelcomeView /></DataTemplate>
@@ -13,27 +16,80 @@
         <DataTemplate DataType="{x:Type vm:DashboardViewModel}"><views:DashboardView /></DataTemplate>
 
         <local:HealthBrushConverter x:Key="HealthBrush" />
+        <local:StepStatusBrushConverter x:Key="StepBrush" />
         <BooleanToVisibilityConverter x:Key="BoolToVisibility" />
+        <local:NullToCollapsedConverter x:Key="NullToCollapsed" />
+
+        <!-- App icon: a node hexagon in Tezos blue -->
+        <DrawingImage x:Key="AppIcon">
+            <DrawingImage.Drawing>
+                <DrawingGroup>
+                    <GeometryDrawing Brush="#2C7DF7" Geometry="M12,1 L21.5,6.5 L21.5,17.5 L12,23 L2.5,17.5 L2.5,6.5 Z" />
+                    <GeometryDrawing Geometry="M12,12 L12,4.5 M12,12 L18.5,15.75 M12,12 L5.5,15.75">
+                        <GeometryDrawing.Pen><Pen Brush="White" Thickness="1.6" StartLineCap="Round" EndLineCap="Round" /></GeometryDrawing.Pen>
+                    </GeometryDrawing>
+                    <GeometryDrawing Brush="White" Geometry="M12,9.4 A2.6,2.6 0 1 1 11.99,9.4 Z" />
+                </DrawingGroup>
+            </DrawingImage.Drawing>
+        </DrawingImage>
 
         <Style x:Key="PageTitle" TargetType="TextBlock">
-            <Setter Property="FontSize" Value="24" />
+            <Setter Property="FontSize" Value="26" />
             <Setter Property="FontWeight" Value="SemiBold" />
-            <Setter Property="Margin" Value="0,0,0,16" />
+            <Setter Property="Margin" Value="0,0,0,4" />
+        </Style>
+        <Style x:Key="PageSubtitle" TargetType="TextBlock">
+            <Setter Property="FontSize" Value="14" />
+            <Setter Property="TextWrapping" Value="Wrap" />
+            <Setter Property="Foreground" Value="{DynamicResource TextFillColorSecondaryBrush}" />
+            <Setter Property="Margin" Value="0,0,0,20" />
+        </Style>
+        <Style x:Key="SectionTitle" TargetType="TextBlock">
+            <Setter Property="FontSize" Value="15" />
+            <Setter Property="FontWeight" Value="SemiBold" />
+            <Setter Property="Margin" Value="0,0,0,10" />
+        </Style>
+        <Style x:Key="Hint" TargetType="TextBlock">
+            <Setter Property="FontSize" Value="12" />
+            <Setter Property="TextWrapping" Value="Wrap" />
+            <Setter Property="Foreground" Value="{DynamicResource TextFillColorSecondaryBrush}" />
+        </Style>
+        <Style x:Key="ErrorText" TargetType="TextBlock">
+            <Setter Property="TextWrapping" Value="Wrap" />
+            <Setter Property="Foreground" Value="{DynamicResource SystemFillColorCriticalBrush}" />
         </Style>
         <Style x:Key="FieldLabel" TargetType="TextBlock">
             <Setter Property="VerticalAlignment" Value="Center" />
             <Setter Property="Margin" Value="0,6,16,6" />
         </Style>
-        <Style TargetType="Button">
-            <Setter Property="MinWidth" Value="88" />
-            <Setter Property="Padding" Value="12,4" />
-            <Setter Property="Margin" Value="8,0,0,0" />
+        <Style x:Key="Card" TargetType="Border">
+            <Setter Property="Background" Value="{DynamicResource CardBackgroundFillColorDefaultBrush}" />
+            <Setter Property="BorderBrush" Value="{DynamicResource CardStrokeColorDefaultBrush}" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="CornerRadius" Value="8" />
+            <Setter Property="Padding" Value="16,14" />
+            <Setter Property="Margin" Value="0,0,0,12" />
+        </Style>
+        <!-- Bottom bar holding Back / Next style buttons on every page -->
+        <Style x:Key="Footer" TargetType="Border">
+            <Setter Property="BorderBrush" Value="{DynamicResource CardStrokeColorDefaultBrush}" />
+            <Setter Property="BorderThickness" Value="0,1,0,0" />
+            <Setter Property="Padding" Value="0,14,0,0" />
+            <Setter Property="Margin" Value="0,12,0,0" />
         </Style>
         <Style x:Key="LogList" TargetType="ListBox">
             <Setter Property="FontFamily" Value="Cascadia Mono, Consolas" />
             <Setter Property="FontSize" Value="11" />
             <Setter Property="VirtualizingPanel.IsVirtualizing" Value="True" />
             <Setter Property="local:AutoScroll.Enabled" Value="True" />
+            <Setter Property="ItemContainerStyle">
+                <Setter.Value>
+                    <Style TargetType="ListBoxItem">
+                        <Setter Property="Padding" Value="4,0" />
+                        <Setter Property="MinHeight" Value="0" />
+                    </Style>
+                </Setter.Value>
+            </Setter>
         </Style>
     </Application.Resources>
 </Application>
