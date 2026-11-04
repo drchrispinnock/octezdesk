@@ -1,0 +1,53 @@
+<UserControl x:Class="OctezDesk.Win.Views.NodeSetupView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+    <DockPanel>
+        <StackPanel DockPanel.Dock="Bottom" Orientation="Horizontal" HorizontalAlignment="Right">
+            <Button Content="Back" Command="{Binding BackCommand}" />
+            <Button Content="Set up" IsDefault="True" Command="{Binding SetUpCommand}" />
+        </StackPanel>
+        <TextBlock DockPanel.Dock="Bottom" Foreground="Firebrick" TextWrapping="Wrap" Margin="0,0,0,12"
+                   Text="{Binding Errors}" />
+        <StackPanel>
+            <TextBlock Style="{StaticResource PageTitle}" Text="Node" />
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="Auto" />
+                </Grid.ColumnDefinitions>
+                <Grid.RowDefinitions>
+                    <RowDefinition /><RowDefinition /><RowDefinition /><RowDefinition />
+                    <RowDefinition /><RowDefinition /><RowDefinition /><RowDefinition />
+                </Grid.RowDefinitions>
+
+                <TextBlock Grid.Row="0" Style="{StaticResource FieldLabel}" Text="Network" />
+                <ComboBox Grid.Row="0" Grid.Column="1" Width="200" HorizontalAlignment="Left" Margin="0,4"
+                          ItemsSource="{Binding Networks}" SelectedItem="{Binding Network}" />
+
+                <TextBlock Grid.Row="1" Style="{StaticResource FieldLabel}" Text="History mode" />
+                <ComboBox Grid.Row="1" Grid.Column="1" Width="200" HorizontalAlignment="Left" Margin="0,4"
+                          ItemsSource="{Binding HistoryModes}" SelectedItem="{Binding HistoryMode}" />
+
+                <TextBlock Grid.Row="2" Style="{StaticResource FieldLabel}" Text="Gossip port" />
+                <TextBox Grid.Row="2" Grid.Column="1" Width="100" HorizontalAlignment="Left" Margin="0,4"
+                         Text="{Binding P2pPort, UpdateSourceTrigger=PropertyChanged}" />
+
+                <TextBlock Grid.Row="3" Style="{StaticResource FieldLabel}" Text="RPC port" />
+                <TextBox Grid.Row="3" Grid.Column="1" Width="100" HorizontalAlignment="Left" Margin="0,4"
+                         Text="{Binding RpcPort, UpdateSourceTrigger=PropertyChanged}" />
+
+                <CheckBox Grid.Row="4" Grid.Column="1" Margin="0,8" Content="Enable all RPC (--allow-all-rpc)"
+                          IsChecked="{Binding AllowAllRpc}" />
+                <CheckBox Grid.Row="5" Grid.Column="1" Margin="0,4" Content="Install from snapshot"
+                          IsChecked="{Binding ImportSnapshot}" />
+
+                <TextBlock Grid.Row="6" Style="{StaticResource FieldLabel}" Text="Data location" />
+                <TextBox Grid.Row="6" Grid.Column="1" Margin="0,12,0,4"
+                         Text="{Binding InstallLocation, UpdateSourceTrigger=PropertyChanged}" />
+                <Button Grid.Row="6" Grid.Column="2" Margin="8,12,0,4" Content="Browse…" Command="{Binding BrowseCommand}" />
+                <TextBlock Grid.Row="7" Grid.Column="1" Foreground="Gray" Text="{Binding FreeSpace}" />
+            </Grid>
+        </StackPanel>
+    </DockPanel>
+</UserControl>
