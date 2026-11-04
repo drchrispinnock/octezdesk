@@ -11,6 +11,22 @@ public static class OctezPaths
     public const string TezosHome = "/var/tezos";
     /// <summary>OctezDesk's record of the settings it configured the node with (see <see cref="NodeSettingsRecord"/>).</summary>
     public const string OctezDeskNodeSettingsFile = "/var/tezos/.octezdesk-node.json";
+    /// <summary>OctezDesk's record of the baking keys it set up (see <see cref="BakingKeysRecord"/>).</summary>
+    public const string OctezDeskKeysFile = "/var/tezos/.octezdesk-keys.json";
+
+    public const string DalPackage = "octez-dal-node";
+    public const string DalNodeService = "octez-dal-node";
+    public const string DalDefaultsFile = "/etc/default/octez-dal-node";
+    /// <summary>Used only if <see cref="DalDefaultsFile"/> has no DATADIR.</summary>
+    public const string DefaultDalDataDir = "/var/tezos/.tezos-dal-node";
+    public const string DalLogFile = "/var/log/tezos/octez-dal-node.log";
+    /// <summary>OctezDesk's record of the settings it configured the DAL node with (see <see cref="DalSettingsRecord"/>).</summary>
+    public const string OctezDeskDalSettingsFile = "/var/tezos/.octezdesk-dal.json";
+
+    public const string BakerPackage = "octez-baker";
+    public const string BakerService = "octez-baker";
+    public const string BakerDefaultsFile = "/etc/default/octez-baker";
+    public const string BakerLogFile = "/var/log/tezos/octez-baker.log";
 
     public static readonly string[] NodePackages = ["octez-node", "octez-client"];
 }

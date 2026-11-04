@@ -62,6 +62,20 @@ public sealed class ConfigureNodeStep(IOctezHost host, NodeService node, NodeSet
 
         if (await host.FileExistsAsync(configFile, ct))
         {
+            // Same chain (network and history mode): ports and RPC access are updated in place,
+            // keeping the chain data. Only a different chain needs the data wiped.
+            var wanted = NodeSettingsRecord.From(settings);
+            if (await node.GetConfiguredSettingsAsync(ct) is { } recorded && recorded.IsSameChain(wanted))
+            {
+                log("Updating the node's ports and RPC access; its chain data is kept.");
+                (await host.RunAsync(settings.ConfigUpdateArgv(dataDir), HostUser.Tezos, onLine: log, ct: ct))
+                    .EnsureSuccess("octez-node config update");
+                await host.WriteFileAsync(OctezPaths.OctezDeskNodeSettingsFile, wanted.ToJson(), ct);
+                // The node only reads its config at start.
+                if (await node.IsActiveAsync(ct)) await node.RestartAsync(ct);
+                return;
+            }
+
             // An import still running is for the old settings; the import step would otherwise
             // re-attach to it and import the wrong network's snapshot.
             if ((await host.RunAsync(["systemctl", "is-active", "--quiet", ImportSnapshotStep.UnitName], ct: ct)).Success)
@@ -73,8 +87,8 @@ public sealed class ConfigureNodeStep(IOctezHost host, NodeService node, NodeSet
 
             if (await node.HasChainDataAsync(ct))
                 throw new InvalidOperationException(
-                    "The node is already set up with different settings and has chain data. " +
-                    "Use Reconfigure from the main screen to change network or history mode.");
+                    "The node already has chain data for a different network or history mode. " +
+                    "Go Back and choose the node's current network and history mode to keep it.");
             log("Replacing the existing node configuration (no chain data yet).");
             (await host.RunAsync(["rm", "-f", configFile], ct: ct)).EnsureSuccess("Removing old config");
         }
@@ -152,6 +166,59 @@ public sealed class ImportSnapshotStep(IOctezHost host, NodeService node, NodeSe
 
     private async Task<bool> IsUnitActiveAsync(CancellationToken ct)
         => (await host.RunAsync(["systemctl", "is-active", "--quiet", UnitName], ct: ct)).Success;
+}
+
+/// <summary>
+/// Generates the baking keys chosen on the Baker screen, in the tezos user's octez-client wallet.
+/// Runs once the node is up: without one, each octez-client call waits about 20 s for it.
+/// </summary>
+public sealed class GenerateBakingKeysStep(BakingKeyService keys, BakingKeyChoice choice, NodeService node) : IProvisioningStep
+{
+    public string Title => choice.Setup switch
+    {
+        BakingKeySetup.MasterKey => $"Generate a {choice.MasterType.Prefix()} master key",
+        BakingKeySetup.MasterAndCompanion => "Generate tz4 master and companion keys",
+        BakingKeySetup.ConsensusAndCompanion => "Generate tz4 consensus and companion keys",
+        _ => "Generate baking keys",
+    };
+
+    public Task<bool> IsDoneAsync(CancellationToken ct) => keys.HasKeysForAsync(choice, ct);
+
+    public async Task RunAsync(Action<string> log, CancellationToken ct)
+    {
+        // Not fatal: keys can be made without the node, only slowly.
+        if (!await node.WaitForRpcAsync(TimeSpan.FromMinutes(1), ct))
+            log("The node's RPC isn't answering yet; generating keys anyway (this is slower).");
+        await keys.CreateAsync(choice, log, ct);
+    }
+}
+
+/// <summary>
+/// Makes the node's RPC listen on <see cref="NodeSettings.RpcAddr"/>. A fresh config already does;
+/// this repairs nodes configured by earlier OctezDesk builds, which listened on 0.0.0.0. There,
+/// Octez's restrictive default ACL blocked the DAL node. Uses <c>config update</c>, which keeps the
+/// chain data, and restarts a running node so it takes effect.
+/// </summary>
+public sealed class SetNodeRpcAddressStep(IOctezHost host, NodeService node, NodeSettings settings) : IProvisioningStep
+{
+    public string Title => $"Set the node's RPC address to {settings.RpcAddr}";
+
+    public async Task<bool> IsDoneAsync(CancellationToken ct)
+        => await node.GetRpcListenAddrsAsync(ct) is [var addr] && addr == settings.RpcAddr;
+
+    public async Task RunAsync(Action<string> log, CancellationToken ct)
+    {
+        var current = await node.GetRpcListenAddrsAsync(ct);
+        log($"The node's RPC listens on {(current is { Count: > 0 } ? string.Join(", ", current) : "nothing")}; changing it to {settings.RpcAddr}.");
+        (await host.RunAsync(settings.ConfigUpdateArgv(await node.GetDataDirAsync(ct)), HostUser.Tezos, onLine: log, ct: ct))
+            .EnsureSuccess("octez-node config update");
+        // The node only reads its config at start.
+        if (await node.IsActiveAsync(ct))
+        {
+            log("Restarting the node.");
+            await node.RestartAsync(ct);
+        }
+    }
 }
 
 public sealed class StartNodeStep(NodeService node) : IProvisioningStep

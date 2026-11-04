@@ -20,10 +20,19 @@ public partial class DashboardViewModel(MainViewModel main) : ObservableObject, 
         @"fetching branch of|fetching operations|Failed to send event|^\s", RegexOptions.Compiled);
 
     private readonly CancellationTokenSource _cts = new();
-    private CancellationTokenSource? _logCts;
     private AppServices Services => main.Services;
 
-    public LogBuffer Log { get; } = new(filter: line => !RoutineLogLine.IsMatch(line));
+    /// <summary>The log panel's tabs: node, baker, DAL node. Each follows its own log file.</summary>
+    public IReadOnlyList<LogTabViewModel> LogTabs { get; } =
+    [
+        new("Node", (onLine, ct) => main.Services.Node.FollowLogAsync(onLine, ct: ct), RoutineLogLine),
+        new("Baker", (onLine, ct) => main.Services.Baker.FollowLogAsync(onLine, ct: ct)),
+        new("DAL node", (onLine, ct) => main.Services.Dal.FollowLogAsync(onLine, ct: ct)),
+    ];
+
+    private LogTabViewModel NodeLog => LogTabs[0];
+
+    [ObservableProperty] private LogTabViewModel? _selectedLogTab;
 
     /// <summary>Null until the first check completes (grey dot).</summary>
     [ObservableProperty] private HealthLevel? _nodeLevel;
@@ -33,19 +42,9 @@ public partial class DashboardViewModel(MainViewModel main) : ObservableObject, 
     /// <summary>e.g. "Shadownet · rolling", from what OctezDesk configured.</summary>
     [ObservableProperty] private string? _networkLabel;
 
-    /// <summary>Grey dot for services that are not set up yet.</summary>
-    public HealthLevel? NotSetUp => null;
-
-    [ObservableProperty] private bool _showRoutineLog;
-
-    partial void OnShowRoutineLogChanged(bool value)
-    {
-        Log.Filter = value ? null : line => !RoutineLogLine.IsMatch(line);
-        RestartLogFollow();
-    }
 
     [ObservableProperty]
-    [NotifyCanExecuteChangedFor(nameof(UpgradeCommand), nameof(RestartCommand), nameof(ShutdownCommand))]
+    [NotifyCanExecuteChangedFor(nameof(UpgradeCommand), nameof(RestartCommand), nameof(ShutdownCommand), nameof(SetupWizardCommand))]
     private bool _isBusy;
 
     [ObservableProperty] private string? _busyText;
@@ -55,7 +54,8 @@ public partial class DashboardViewModel(MainViewModel main) : ObservableObject, 
         KeepAliveService.EnsureRunning();
         _ = LoadNetworkLabelAsync();
         _ = PollLoopAsync(_cts.Token);
-        RestartLogFollow();
+        SelectedLogTab = NodeLog;
+        foreach (var tab in LogTabs) tab.Start(_cts.Token);
     }
 
     private async Task LoadNetworkLabelAsync()
@@ -71,14 +71,6 @@ public partial class DashboardViewModel(MainViewModel main) : ObservableObject, 
         catch (Exception ex) when (ex is not OperationCanceledException) { }
     }
 
-    private void RestartLogFollow()
-    {
-        _logCts?.Cancel();
-        Log.Clear();
-        _logCts = CancellationTokenSource.CreateLinkedTokenSource(_cts.Token);
-        _ = FollowLogLoopAsync(_logCts.Token);
-    }
-
     private async Task PollLoopAsync(CancellationToken ct)
     {
         using var timer = new PeriodicTimer(PollInterval);
@@ -88,6 +80,8 @@ public partial class DashboardViewModel(MainViewModel main) : ObservableObject, 
             {
                 KeepAliveService.EnsureRunning();
                 Apply(await Services.Monitor.CheckAsync(ct));
+                ApplyDal(await Services.DalMonitor.CheckAsync(ct));
+                ApplyBaker(await Services.BakerMonitor.CheckAsync(ct));
             }
             catch (OperationCanceledException) when (ct.IsCancellationRequested) { return; }
             catch (Exception ex)
@@ -106,6 +100,28 @@ public partial class DashboardViewModel(MainViewModel main) : ObservableObject, 
         catch (OperationCanceledException) { return false; }
     }
 
+    [ObservableProperty] private HealthLevel? _dalLevel;
+    [ObservableProperty] private string _dalSummary = "Checking…";
+    [ObservableProperty] private string _dalDetails = "";
+
+    private void ApplyDal(ServiceHealth health)
+    {
+        DalLevel = health.Level;
+        DalSummary = health.Summary;
+        DalDetails = health.Details;
+    }
+
+    [ObservableProperty] private HealthLevel? _bakerLevel;
+    [ObservableProperty] private string _bakerSummary = "Checking…";
+    [ObservableProperty] private string _bakerDetails = "";
+
+    private void ApplyBaker(ServiceHealth health)
+    {
+        BakerLevel = health.Level;
+        BakerSummary = health.Summary;
+        BakerDetails = health.Details;
+    }
+
     private void Apply(NodeHealth health)
     {
         NodeLevel = health.Level;
@@ -118,20 +134,6 @@ public partial class DashboardViewModel(MainViewModel main) : ObservableObject, 
         if (o.PeerCount is { } peers) parts.Add($"{peers} peers");
         if (o.Version is { } version) parts.Add($"Octez {version}");
         NodeDetails = string.Join(" · ", parts);
-    }
-
-    /// <summary>tail -F exits if the distro restarts, so keep re-attaching.</summary>
-    private async Task FollowLogLoopAsync(CancellationToken ct)
-    {
-        while (!ct.IsCancellationRequested)
-        {
-            try { await Task.Run(() => Services.Node.FollowLogAsync(Log.Append, ct: ct), ct); }
-            catch (OperationCanceledException) { return; }
-            catch (Exception ex) { Log.Append($"(log unavailable: {ex.Message})"); }
-
-            try { await Task.Delay(PollInterval, ct); }
-            catch (OperationCanceledException) { return; }
-        }
     }
 
     private bool NotBusy() => !IsBusy;
@@ -159,9 +161,9 @@ public partial class DashboardViewModel(MainViewModel main) : ObservableObject, 
     private Task Upgrade() => RunActionAsync("Upgrading Octez…", async () =>
     {
         var before = await Services.Node.GetInstalledVersionAsync();
-        await Services.Node.UpgradeAsync(Log.Append);
+        await Services.Node.UpgradeAsync(NodeLog.Log.Append);
         var after = await Services.Node.GetInstalledVersionAsync();
-        Log.Append(before == after ? $"Octez is already up to date ({after})." : $"Upgraded Octez {before} → {after}.");
+        NodeLog.Log.Append(before == after ? $"Octez is already up to date ({after})." : $"Upgraded Octez {before} → {after}.");
     });
 
     [RelayCommand(CanExecute = nameof(NotBusy))]
@@ -191,6 +193,13 @@ public partial class DashboardViewModel(MainViewModel main) : ObservableObject, 
     /// <summary>Closes the GUI only; the node keeps running.</summary>
     [RelayCommand]
     private static void Exit() => Application.Current.Shutdown();
+
+    [RelayCommand]
+    private Task BakingKeys() => main.ShowRecordedBakingKeysAsync();
+
+    /// <summary>Runs the wizard again, e.g. to add baking keys or a DAL node. Its steps skip what's already done.</summary>
+    [RelayCommand(CanExecute = nameof(NotBusy))]
+    private void SetupWizard() => main.ShowWelcome();
 
     /// <summary>Not implemented yet: needs config update / data wipe handling (spec/Windows.md §2.5).</summary>
     [RelayCommand(CanExecute = nameof(CanReconfigure))]

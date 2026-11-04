@@ -5,10 +5,10 @@ using System.Windows.Shapes;
 
 namespace OctezDesk.Win.Views;
 
-/// <summary>"① Welcome — ② Node — ③ Set up" indicator shown at the top of each wizard page.</summary>
+/// <summary>"① Welcome — ② Node — ③ Baker — ④ Funds — ⑤ DAL node — ⑥ Set up" indicator shown at the top of each wizard page.</summary>
 public sealed class WizardSteps : StackPanel
 {
-    public static readonly string[] Titles = ["Welcome", "Node", "Set up"];
+    public static readonly string[] Titles = ["Welcome", "Node", "Baker", "Funds", "DAL node", "Set up"];
 
     public static readonly DependencyProperty CurrentProperty = DependencyProperty.Register(
         nameof(Current), typeof(int), typeof(WizardSteps), new PropertyMetadata(1, (d, _) => ((WizardSteps)d).Build()));
@@ -68,7 +68,7 @@ public sealed class WizardSteps : StackPanel
             if (i < Titles.Length)
                 Children.Add(new Rectangle
                 {
-                    Width = 40, Height = 1, Fill = muted, Margin = new Thickness(12, 0, 12, 0),
+                    Width = 24, Height = 1, Fill = muted, Margin = new Thickness(10, 0, 10, 0),
                     VerticalAlignment = VerticalAlignment.Center,
                 });
         }

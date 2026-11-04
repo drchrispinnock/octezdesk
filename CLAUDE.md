@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project
 
-OctezDesk is a desktop GUI for running Octez (the Tezos node software). It has a setup wizard and a monitoring screen. Windows comes first, then Linux (GTK), then macOS. The current goal is **Objective 1: get a node running on Windows** (wizard screens 1, 2 and 6). The DAL node, keys and the baker come later.
+OctezDesk is a desktop GUI for running Octez (the Tezos node software). It has a setup wizard and a monitoring screen. Windows comes first, then Linux (GTK), then macOS. The current goal is **Objective 1: get a node running on Windows** (wizard screens 1, 2 and 6). The Baker screen (keys and liquidity baking vote), the Funds screen (test networks: faucet and staking) and the DAL node screen are also done.
 
 Specs:
 - `spec/OctezDesk.md`: the requirements.
@@ -47,6 +47,7 @@ gtk/, mac/              later front ends on the same Core
 - Everything above the host is platform-neutral: `NodeService`, the provisioning steps and `NodeMonitor`.
 - When you need a shell, use `host.ShAsync(script, args)` and refer to arguments as `"$1"` and so on; don't interpolate values into the script.
 - Run apt through `host.AptGetAsync`, which runs it non-interactively.
+- Text files written into the distro must use LF (no `AppendLine`, no `Environment.NewLine`); systemd reads `value\r` from CRLF. `ProcessRunner` joins captured output with LF to match.
 
 **Octez comes from the tzinit Debian packages and follows their conventions** (`Core/Octez/OctezPaths.cs`):
 - systemd unit `octez-node`;
@@ -61,18 +62,22 @@ Upgrades are done with `apt`.
 - `ProvisioningPlans.WindowsNode` assembles the Windows plan:
   1. create the distro (Debian, checked to be trixie);
   2. enable systemd through `/etc/wsl.conf`;
-  3. enable WSL mirrored networking in the user's global `%UserProfile%.wslconfig` (`EnableMirroredNetworkingStep`). It never fails setup, leaves a mode the user chose alone, and only runs `wsl --shutdown` when no other distro is running;
+  3. enable WSL mirrored networking in the user's global `%UserProfile%\.wslconfig` (`EnableMirroredNetworkingStep`). It never fails setup, leaves a mode the user chose alone, and only runs `wsl --shutdown` when no other distro is running;
   4. install packages (`extrepo enable tzinit`, falling back to a manual keyring with a fingerprint check);
   5. `octez-node config init`, run as tezos;
   6. snapshot import, run as a transient systemd unit `octezdesk-snapshot` so it survives the GUI closing;
-  7. `systemctl enable --now octez-node`.
+  7. `systemctl enable --now octez-node`;
+  8. generate baking keys, only if chosen on screen 3 (`GenerateBakingKeysStep`, `Core/Octez/BakingKeys.cs`). This comes **after the node is up**, because octez-client waits about 20 s per call when no node answers. Keys go into the tezos user's default octez-client wallet, unencrypted, as `baker`, `consensus` and `companion`. Existing keys are reused, never overwritten. `/var/tezos/.octezdesk-keys.json` records which keys were made;
+  9. if the DAL node is on (screen 4), install `octez-dal-node`, run `octez-dal-node config init` and start it (`Core/Provisioning/DalSteps.cs`). The attester is the `baker` master key or an address the user typed. `/var/tezos/.octezdesk-dal.json` records the settings. If it's off, disable one set up earlier;
+  10. if baking, install `octez-baker`, write `/etc/default/octez-baker` in full and start it (`Core/Provisioning/BakerSteps.cs`). The file has `KEYS` (consensus or master key, then companion key), `DAL_OPTIONS` and `LQ_VOTE` (the liquidity baking vote from screen 3), and the step is done when it already has that exact content. If not baking, disable a baker set up earlier;
+  11. on a test network, when setup creates a master key and the Funds screen (between Baker and DAL node) asked for it, as the **last** steps (`Core/Provisioning/FundingSteps.cs`): get test tez from the teztnets faucet (`Core/Octez/Faucet.cs`, which solves its proof-of-work challenges; at least 6,001 ꜩ), then register `baker` as a delegate (with `--companion-key companion` if there is one) and stake 6,000 ꜩ or 10% of the amount, whichever is higher. Each step checks the chain through the local node's RPC (balance, `staked_balance`, `delegates/<pkh>`), so a re-run skips what's on chain already. Mainnet funding is not done yet. **On mainnet OctezDesk never creates a master key**: the Baker screen offers only "Don't bake" and consensus and companion keys (`BakingKeyChoice.IsAllowedOn`, also enforced by `ProvisioningPlans.WindowsNode`), and the keys screen then shows the `octez-client` commands to register them from the user's own wallet.
 
-**Configured settings are recorded in the distro.** `ConfigureNodeStep` writes `/var/tezos/.octezdesk-node.json` (`NodeSettingsRecord`). The step counts as done only if that record matches the wizard's choices, so going Back and changing the network doesn't silently keep the old config. A config that doesn't match is replaced only if there's no chain data yet.
+**Configured settings are recorded in the distro.** `ConfigureNodeStep` writes `/var/tezos/.octezdesk-node.json` (`NodeSettingsRecord`). The step counts as done only if that record matches the wizard's choices, so going Back and changing the network doesn't silently keep the old config. If only ports or RPC access differ (same network and history mode), it runs `octez-node config update` and keeps the chain data, so re-running the wizard on a working node isn't a dead end. A different network or history mode replaces the config only if there's no chain data yet. A failed setup can always be left with Cancel, which goes back to the dashboard if a node is set up.
 
 **State comes from the distro, not from Windows settings.** `InstallationProbe` checks whether WSL is installed, whether the distro exists, and whether the package and `config.json` are present. It uses that to pick between the wizard and the dashboard at startup.
 
 **Health (`Core/Health`):**
-- `NodeMonitor` gathers systemd state plus node RPC calls. The RPC calls run **inside the host** (`wget` to `127.0.0.1:<port>`, using the port from the node's `config.json`). They don't depend on Windows reaching the distro. The node listens on `0.0.0.0`, and with mirrored networking Windows tools reach it at `127.0.0.1:<port>` (NAT-mode localhost forwarding didn't work on the dev machine; see spec/Windows.md §2.7).
+- `NodeMonitor` gathers systemd state plus node RPC calls. The RPC calls run **inside the host** (`wget` to `127.0.0.1:<port>`, using the port from the node's `config.json`). They don't depend on Windows reaching the distro. The node RPC listens on `127.0.0.1` only (gossip on `0.0.0.0`), and with mirrored networking Windows tools reach it at `127.0.0.1:<port>` too (NAT-mode localhost forwarding didn't work on the dev machine; see spec/Windows.md §2.7). **Keep the RPC on localhost:** on any other address Octez applies its restrictive default ACL, which blocks `/monitor/heads/main`, and the DAL node exits. `SetNodeRpcAddressStep` repairs nodes set up by earlier builds that listened on `0.0.0.0`.
 - The pure function `HealthEvaluator` maps that to Red, Yellow or Green. The rules are unit-tested; change them there.
 
 **WSL specifics (`Core/Wsl`):**

@@ -5,6 +5,24 @@ namespace OctezDesk.Core.Octez;
 /// <summary>Reads the bits of the node's <c>config.json</c> that OctezDesk needs.</summary>
 public static class NodeConfigFile
 {
+    /// <summary>All <c>rpc.listen-addrs</c> entries (or the older single <c>listen-addr</c>); empty if none, null if the JSON is invalid.</summary>
+    public static IReadOnlyList<string>? TryGetRpcListenAddrs(string configJson)
+    {
+        try
+        {
+            using var doc = JsonDocument.Parse(configJson);
+            if (!doc.RootElement.TryGetProperty("rpc", out var rpc)) return [];
+            if (rpc.TryGetProperty("listen-addrs", out var addrs) && addrs.ValueKind == JsonValueKind.Array)
+                return addrs.EnumerateArray().Select(a => a.GetString()).OfType<string>().ToList();
+            if (rpc.TryGetProperty("listen-addr", out var single) && single.GetString() is { } s) return [s];
+            return [];
+        }
+        catch (JsonException)
+        {
+            return null;
+        }
+    }
+
     /// <summary>
     /// The port of the first <c>rpc.listen-addrs</c> entry (e.g. "127.0.0.1:8732", "[::1]:8732"),
     /// or null if there is none.

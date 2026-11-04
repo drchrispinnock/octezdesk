@@ -53,6 +53,16 @@ public sealed class NullToCollapsedConverter : IValueConverter
         => throw new NotSupportedException();
 }
 
+/// <summary>KeyType → "tz4 (BLS)" etc.</summary>
+public sealed class KeyTypeLabelConverter : IValueConverter
+{
+    public object Convert(object? value, Type targetType, object parameter, CultureInfo culture)
+        => value is Core.Octez.KeyType t ? Core.Octez.KeyTypeExtensions.Describe(t) : "";
+
+    public object ConvertBack(object value, Type targetType, object parameter, CultureInfo culture)
+        => throw new NotSupportedException();
+}
+
 /// <summary>Keeps a ListBox scrolled to its newest item while items are appended.</summary>
 public static class AutoScroll
 {
@@ -65,15 +75,21 @@ public static class AutoScroll
     private static void OnEnabledChanged(DependencyObject d, DependencyPropertyChangedEventArgs e)
     {
         if (d is not ListBox list || e.NewValue is not true) return;
-        list.Loaded += (_, _) =>
+        // Subscribed once here, not on Loaded, which fires again each time the list is shown.
+        // Reset covers a new ItemsSource, e.g. a tab sharing this list switching logs.
+        ((INotifyCollectionChanged)list.Items).CollectionChanged += (_, args) =>
         {
-            if (list.Items is INotifyCollectionChanged items)
-                items.CollectionChanged += (_, args) =>
-                {
-                    if (args.Action == NotifyCollectionChangedAction.Add && list.Items.Count > 0)
-                        list.ScrollIntoView(list.Items[^1]);
-                };
+            if (args.Action == NotifyCollectionChangedAction.Add) ScrollToEnd(list);
+            // After a Reset the new items aren't laid out yet.
+            else if (args.Action == NotifyCollectionChangedAction.Reset)
+                list.Dispatcher.BeginInvoke(() => ScrollToEnd(list), System.Windows.Threading.DispatcherPriority.Background);
         };
+        list.Loaded += (_, _) => ScrollToEnd(list);
+    }
+
+    private static void ScrollToEnd(ListBox list)
+    {
+        if (list.Items.Count > 0) list.ScrollIntoView(list.Items[^1]);
     }
 }
 

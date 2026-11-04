@@ -36,5 +36,8 @@ public sealed record TezosNetwork(string Id, string DisplayName, string ConfigVa
     /// </summary>
     public string SnapshotUrl(HistoryMode mode) => $"https://snapshots.tzinit.org/{Id}/{mode.ToCliValue()}";
 
+    /// <summary>The teztnets faucet for a test network (e.g. https://faucet.bakingnet.teztnets.com); null on mainnet.</summary>
+    public string? FaucetUrl => this == Mainnet ? null : $"https://faucet.{Id}.teztnets.com";
+
     public override string ToString() => DisplayName;
 }

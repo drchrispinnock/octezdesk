@@ -15,6 +15,13 @@ internal sealed class FakeHost : IOctezHost
         return this;
     }
 
+    /// <summary>A rule whose result is computed per call, for state that changes (e.g. a file created by an earlier call).</summary>
+    public FakeHost On(Func<IReadOnlyList<string>, bool> match, Func<CommandResult> result)
+    {
+        _rules.Insert(0, (match, result));
+        return this;
+    }
+
     public FakeHost OnFile(string path, string content)
         => On(a => a is ["cat", var p] && p == path, stdout: content);
 

@@ -17,7 +17,14 @@ public sealed class CreateDistroStep(WslManager wsl, string location) : IProvisi
     public async Task RunAsync(Action<string> log, CancellationToken ct)
     {
         log($"Installing {WslManager.BaseImage} into {location}");
-        await wsl.InstallDistroAsync(location, log, ct);
+        try
+        {
+            await wsl.InstallDistroAsync(location, log, ct);
+        }
+        catch (HostCommandException ex) when (WslErrors.Explain(ex.Message) is { } explanation)
+        {
+            throw new InvalidOperationException($"{explanation}\n\nWSL said: {ex.Message}", ex);
+        }
     }
 }
 
@@ -146,10 +153,20 @@ public sealed class EnableMirroredNetworkingStep(WslManager wsl, IOctezHost host
 public static class ProvisioningPlans
 {
     /// <summary>Objective 1 on Windows: create the distro and get a node running.</summary>
+    /// <param name="keys">Baking keys to generate, or null if the user chose not to bake.</param>
+    /// <param name="dal">DAL node settings; null or disabled means no DAL node (one set up earlier is turned off).</param>
+    /// <param name="baker">Baker settings, used when <paramref name="keys"/> is set: baking means keys plus a running baker.</param>
+    /// <param name="funding">The Funds screen's choice; used only where <see cref="FundingSettings.AppliesTo"/> (a test network and a master key).</param>
     public static Provisioner WindowsNode(
-        WslManager wsl, IOctezHost host, string distroLocation, NodeSettings settings)
+        WslManager wsl, IOctezHost host, string distroLocation, NodeSettings settings,
+        BakingKeyChoice? keys = null, DalSettings? dal = null, BakerSettings? baker = null, FundingSettings? funding = null)
     {
+        if (keys is not null && !BakingKeyChoice.IsAllowedOn(keys.Setup, settings.Network))
+            throw new ArgumentException($"OctezDesk doesn't create a master key on {settings.Network.DisplayName}.", nameof(keys));
         var node = new NodeService(host);
+        var dalNode = new DalNodeService(host);
+        var client = new OctezClient(host);
+        var dalOn = dal is { Enabled: true };
         var steps = new List<IProvisioningStep>
         {
             new CreateDistroStep(wsl, distroLocation),
@@ -157,10 +174,46 @@ public static class ProvisioningPlans
             new EnableSystemdStep(wsl, host),
             new EnableMirroredNetworkingStep(wsl, host, WslConfigFile.DefaultPath),
             new InstallOctezStep(host, node),
-            new ConfigureNodeStep(host, node, settings),
         };
+        var keyService = new BakingKeyService(host, client);
+        var bakerService = new BakerService(host);
+        var baking = keys is not null;
+        steps.Add(new ConfigureNodeStep(host, node, settings));
+        steps.Add(new SetNodeRpcAddressStep(host, node, settings));
         if (settings.ImportSnapshot) steps.Add(new ImportSnapshotStep(host, node, settings));
         steps.Add(new StartNodeStep(node));
+
+        // Everything to do with keys comes after the node is up: octez-client takes about 20 s per
+        // call when no node answers, and creating a proof of possession needs several calls per key.
+        // The DAL node's attester and the baker's KEYS come from the keys, so they follow.
+        if (baking) steps.Add(new GenerateBakingKeysStep(keyService, keys!, node));
+        if (dalOn)
+        {
+            steps.Add(new InstallDalNodeStep(host, dalNode));
+            steps.Add(new ConfigureDalNodeStep(host, dalNode, node, client, dal!));
+            steps.Add(new StartDalNodeStep(dalNode));
+        }
+        else steps.Add(new DisableDalNodeStep(host, dalNode));
+        if (baking)
+        {
+            steps.Add(new InstallBakerStep(host, bakerService));
+            steps.Add(new ConfigureBakerStep(host, bakerService, node, keyService, dal, baker ?? new BakerSettings()));
+            steps.Add(new StartBakerStep(bakerService));
+        }
+        else steps.Add(new DisableBakerStep(host, bakerService));
+
+        // Last, so the node, DAL node and baker are set up even if the faucet is unavailable; the
+        // node has also had the longest to catch up, which injecting operations needs.
+        if (funding is { Fund: true } && FundingSettings.AppliesTo(settings.Network, keys))
+        {
+            var account = new MasterAccount(host, node, client);
+            steps.Add(new FundFromFaucetStep(account, Faucet.For(settings.Network), funding, settings.Network));
+            if (funding.Stake)
+            {
+                steps.Add(new RegisterDelegateStep(account, withCompanion: keys!.Setup == BakingKeySetup.MasterAndCompanion));
+                steps.Add(new StakeStep(account, funding));
+            }
+        }
         return new Provisioner(steps);
     }
 }

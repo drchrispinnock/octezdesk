@@ -14,10 +14,20 @@ public sealed record NodeSettings
     public bool AllowAllRpc { get; init; }
     public bool ImportSnapshot { get; init; } = true;
 
-    // Both listen on all IPv4 interfaces. With WSL mirrored networking (EnableMirroredNetworkingStep)
-    // Windows reaches them at 127.0.0.1; without it, at the distro's own IP (spec/Windows.md §2.7).
+    /// <summary>Gossip listens on all IPv4 interfaces, so peers can reach it.</summary>
     public string NetAddr => $"0.0.0.0:{P2PPort}";
-    public string RpcAddr => $"0.0.0.0:{RpcPort}";
+
+    /// <summary>
+    /// RPC listens on localhost only. With WSL mirrored networking (EnableMirroredNetworkingStep)
+    /// Windows reaches it at 127.0.0.1 too (spec/Windows.md §2.7). It must stay a localhost address:
+    /// on any other address Octez applies its restrictive default ACL, which blocks
+    /// <c>/monitor/heads/main</c>, and the DAL node exits when it can't call that.
+    /// </summary>
+    public string RpcAddr => $"127.0.0.1:{RpcPort}";
+
+    /// <summary>The RPC options for <c>octez-node config init</c> and <c>config update</c>.</summary>
+    public IReadOnlyList<string> RpcArgs()
+        => AllowAllRpc ? ["--rpc-addr", RpcAddr, "--allow-all-rpc", RpcAddr] : ["--rpc-addr", RpcAddr];
 
     public IReadOnlyList<string> Validate()
     {
@@ -32,6 +42,13 @@ public sealed record NodeSettings
 
     private static bool IsValidPort(int port) => port is >= 1024 and <= 65535;
 
+    /// <summary>
+    /// argv for <c>octez-node config update</c>, run as the tezos user: sets the ports and RPC access
+    /// of an existing node, keeping its chain data. The listen addresses are replaced, not added to.
+    /// </summary>
+    public IReadOnlyList<string> ConfigUpdateArgv(string dataDir)
+        => ["octez-node", "config", "update", "--data-dir", dataDir, "--net-addr", NetAddr, .. RpcArgs()];
+
     /// <summary>argv for <c>octez-node config init</c>, run as the tezos user.</summary>
     public IReadOnlyList<string> ConfigInitArgv(string dataDir)
     {
@@ -42,9 +59,8 @@ public sealed record NodeSettings
             "--network", Network.ConfigValue,
             "--history-mode", HistoryMode.ToCliValue(),
             "--net-addr", NetAddr,
-            "--rpc-addr", RpcAddr,
         };
-        if (AllowAllRpc) argv.AddRange(["--allow-all-rpc", RpcAddr]);
+        argv.AddRange(RpcArgs());
         return argv;
     }
 }

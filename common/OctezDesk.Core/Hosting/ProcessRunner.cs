@@ -29,6 +29,8 @@ public static class ProcessRunner
             foreach (var (k, v) in environment) psi.Environment[k] = v;
 
         using var process = new Process { StartInfo = psi };
+        // Lines are joined with LF, not Environment.NewLine: the output is mostly Linux text (e.g. a file
+        // read with cat) that callers compare with what they wrote.
         var stdout = new StringBuilder();
         var stderr = new StringBuilder();
         var lockObj = new object();
@@ -36,13 +38,13 @@ public static class ProcessRunner
         process.OutputDataReceived += (_, e) =>
         {
             if (e.Data is null) return;
-            lock (lockObj) stdout.AppendLine(e.Data);
+            lock (lockObj) stdout.Append(e.Data).Append('\n');
             onLine?.Invoke(e.Data);
         };
         process.ErrorDataReceived += (_, e) =>
         {
             if (e.Data is null) return;
-            lock (lockObj) stderr.AppendLine(e.Data);
+            lock (lockObj) stderr.Append(e.Data).Append('\n');
             onLine?.Invoke(e.Data);
         };
 

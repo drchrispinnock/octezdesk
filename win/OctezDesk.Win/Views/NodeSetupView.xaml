@@ -7,7 +7,7 @@
             <DockPanel>
                 <StackPanel DockPanel.Dock="Right" Orientation="Horizontal">
                     <Button Content="Back" MinWidth="96" Command="{Binding BackCommand}" />
-                    <Button Content="Set up" MinWidth="96" Margin="8,0,0,0" IsDefault="True"
+                    <Button Content="Next" MinWidth="96" Margin="8,0,0,0" IsDefault="True"
                             Style="{DynamicResource AccentButtonStyle}" Command="{Binding SetUpCommand}" />
                 </StackPanel>
                 <TextBlock Style="{StaticResource ErrorText}" VerticalAlignment="Center" Margin="0,0,16,0" Text="{Binding Errors}" />

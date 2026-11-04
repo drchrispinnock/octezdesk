@@ -173,6 +173,6 @@ public partial class NodeSetupViewModel : ObservableObject
         if (string.IsNullOrWhiteSpace(InstallLocation)) problems.Add("Choose where to store the node's data.");
 
         Errors = problems.Count > 0 ? string.Join(Environment.NewLine, problems) : null;
-        if (problems.Count == 0) _main.ShowSetupProgress(settings, InstallLocation);
+        if (problems.Count == 0) _main.ShowBakingKeys(settings, InstallLocation);
     }
 }

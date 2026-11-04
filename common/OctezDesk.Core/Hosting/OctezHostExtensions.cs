@@ -37,6 +37,14 @@ public static class OctezHostExtensions
         r.EnsureSuccess($"Writing {path}");
     }
 
+    /// <summary>
+    /// Streams the last <paramref name="initialLines"/> lines of a file, then new ones, until cancelled.
+    /// <c>tail -F</c> keeps waiting if the file doesn't exist yet or is rotated.
+    /// </summary>
+    public static Task<CommandResult> FollowFileAsync(
+        this IOctezHost host, string path, Action<string> onLine, int initialLines = 500, CancellationToken ct = default)
+        => host.RunAsync(["tail", "-n", initialLines.ToString(), "-F", path], onLine: onLine, ct: ct);
+
     /// <summary>Runs apt-get non-interactively as root.</summary>
     public static Task<CommandResult> AptGetAsync(
         this IOctezHost host, IEnumerable<string> args, Action<string>? onLine = null, CancellationToken ct = default)

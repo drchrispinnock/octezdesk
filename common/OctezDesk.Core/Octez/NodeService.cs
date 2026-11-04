@@ -39,6 +39,23 @@ public sealed class NodeService(IOctezHost host)
         return (json is null ? null : NodeConfigFile.TryGetRpcPort(json)) ?? NodeSettings.DefaultRpcPort;
     }
 
+    /// <summary>
+    /// Waits until the node answers <c>/version</c> on its RPC port (it opens it a few seconds after
+    /// starting). Returns false if it doesn't within <paramref name="timeout"/>.
+    /// </summary>
+    public async Task<bool> WaitForRpcAsync(TimeSpan timeout, CancellationToken ct = default)
+    {
+        var port = await GetRpcPortAsync(ct);
+        var deadline = DateTime.UtcNow + timeout;
+        while (true)
+        {
+            var r = await host.RunAsync(["wget", "-q", "-O-", "-T", "3", "-t", "1", $"http://127.0.0.1:{port}/version"], ct: ct);
+            if (r.Success) return true;
+            if (DateTime.UtcNow >= deadline) return false;
+            await Task.Delay(TimeSpan.FromSeconds(2), ct);
+        }
+    }
+
     public async Task<bool> IsActiveAsync(CancellationToken ct = default)
         => (await host.RunAsync(["systemctl", "is-active", "--quiet", OctezPaths.NodeService], ct: ct)).Success;
 
@@ -60,16 +77,25 @@ public sealed class NodeService(IOctezHost host)
         return r.Success ? r.StdOut.Trim() : null;
     }
 
-    /// <summary>Upgrades the Octez packages from the tzinit repo and restarts the node.</summary>
+    /// <summary>Upgrades the Octez packages from the tzinit repo and restarts the node (and the DAL node and baker, if running).</summary>
     public async Task UpgradeAsync(Action<string>? onLine = null, CancellationToken ct = default)
     {
         (await host.AptGetAsync(["update"], onLine, ct)).EnsureSuccess("apt-get update");
-        (await host.AptGetAsync(["install", "--only-upgrade", .. OctezPaths.NodePackages], onLine, ct))
+        // --only-upgrade skips packages that aren't installed, such as the DAL node or baker when they're off.
+        (await host.AptGetAsync(["install", "--only-upgrade", .. OctezPaths.NodePackages, OctezPaths.DalPackage, OctezPaths.BakerPackage], onLine, ct))
             .EnsureSuccess("Upgrading Octez");
         await RestartAsync(ct);
+        await host.RunAsync(["systemctl", "try-restart", OctezPaths.DalNodeService, OctezPaths.BakerService], ct: ct);
     }
 
     /// <summary>Streams the node log until cancelled.</summary>
     public Task FollowLogAsync(Action<string> onLine, int initialLines = 500, CancellationToken ct = default)
-        => host.RunAsync(["tail", "-n", initialLines.ToString(), "-F", OctezPaths.NodeLogFile], onLine: onLine, ct: ct);
+        => host.FollowFileAsync(OctezPaths.NodeLogFile, onLine, initialLines, ct);
+
+    /// <summary>The node's <c>rpc.listen-addrs</c> from its config.json, or null if there's no readable config.</summary>
+    public async Task<IReadOnlyList<string>?> GetRpcListenAddrsAsync(CancellationToken ct = default)
+    {
+        var json = await host.TryReadFileAsync(await GetConfigFilePathAsync(ct), ct);
+        return json is null ? null : NodeConfigFile.TryGetRpcListenAddrs(json);
+    }
 }

@@ -5,27 +5,42 @@ using OctezDesk.Core.Wsl;
 
 namespace OctezDesk.Win.ViewModels;
 
-/// <summary>Wizard screen 1: welcome and prerequisite checks.</summary>
+/// <summary>
+/// Wizard screen 1: welcome and the prerequisite checks (Windows version, virtualisation, WSL,
+/// a pending restart). Next is enabled only when <see cref="WindowsPrerequisites.Evaluate"/> says
+/// setup can go ahead.
+/// </summary>
 public partial class WelcomeViewModel : ObservableObject
 {
+    /// <summary>Kept for the life of the app: after "wsl --install", only a restart of Windows clears the need for one.</summary>
+    private static bool _installedWslThisSession;
+
     private readonly MainViewModel _main;
 
     [ObservableProperty]
-    [NotifyCanExecuteChangedFor(nameof(NextCommand))]
-    [NotifyPropertyChangedFor(nameof(NeedsWsl), nameof(WslLevel))]
-    private bool? _wslInstalled;
+    [NotifyCanExecuteChangedFor(nameof(NextCommand), nameof(InstallWslCommand), nameof(CheckCommand))]
+    [NotifyPropertyChangedFor(nameof(CanInstallWsl), nameof(ShowActions), nameof(Level))]
+    private PrerequisiteResult? _result;
+
+    [ObservableProperty] private string _status = "Checking this PC…";
+    [ObservableProperty] private string? _warning;
 
     [ObservableProperty]
-    private string _status = "Checking for the Windows Subsystem for Linux…";
+    [NotifyCanExecuteChangedFor(nameof(NextCommand), nameof(InstallWslCommand), nameof(CheckCommand))]
+    private bool _isBusy;
 
-    public bool NeedsWsl => WslInstalled == false;
+    public bool CanInstallWsl => Result?.CanInstallWsl == true;
 
-    /// <summary>Status dot: grey while checking, green when installed, yellow when missing.</summary>
-    public HealthLevel? WslLevel => WslInstalled switch
+    /// <summary>"Check again" (and "Install WSL…" when it applies) while something still blocks setup.</summary>
+    public bool ShowActions => Result is { CanContinue: false };
+
+    /// <summary>Status dot: grey while checking, green when ready, yellow when WSL or a restart is needed, red when this PC can't run it as is.</summary>
+    public HealthLevel? Level => Result?.State switch
     {
-        true => HealthLevel.Green,
-        false => HealthLevel.Yellow,
         null => null,
+        PrerequisiteState.Ready => HealthLevel.Green,
+        PrerequisiteState.NeedsWsl or PrerequisiteState.NeedsRestart => HealthLevel.Yellow,
+        _ => HealthLevel.Red,
     };
 
     public WelcomeViewModel(MainViewModel main)
@@ -34,33 +49,53 @@ public partial class WelcomeViewModel : ObservableObject
         _ = CheckAsync();
     }
 
-    [RelayCommand]
+    private bool NotBusy() => !IsBusy;
+
+    [RelayCommand(CanExecute = nameof(NotBusy))]
     private async Task CheckAsync()
     {
-        WslInstalled = null;
-        Status = "Checking for the Windows Subsystem for Linux…";
-        WslInstalled = await _main.Services.Wsl.IsWslInstalledAsync();
-        Status = WslInstalled == true
-            ? "Installed. OctezDesk will create its own Linux environment and won't touch any others you have."
-            : "Octez runs inside WSL, which isn't installed yet. Installing it needs administrator approval and may need a restart.";
+        IsBusy = true;
+        Result = null;
+        Warning = null;
+        Status = "Checking this PC…";
+        try
+        {
+            var facts = await Task.Run(() => WindowsPrerequisites.GatherAsync(_main.Services.Wsl, _installedWslThisSession));
+            Result = WindowsPrerequisites.Evaluate(facts);
+            Status = Result.Message;
+            Warning = Result.Warning;
+        }
+        catch (Exception ex)
+        {
+            Status = $"Couldn't check this PC: {ex.Message}";
+        }
+        finally { IsBusy = false; }
     }
 
-    [RelayCommand]
+    private bool CanRunInstall() => CanInstallWsl && !IsBusy;
+
+    [RelayCommand(CanExecute = nameof(CanRunInstall))]
     private async Task InstallWslAsync()
     {
-        Status = "Installing WSL — approve the Windows prompt…";
-        if (!await WslManager.InstallWslElevatedAsync())
+        IsBusy = true;
+        Status = "Installing WSL. Approve the Windows prompt, then wait for the installer to finish…";
+        var result = await WslManager.InstallWslElevatedAsync();
+        IsBusy = false;
+        switch (result.Result)
         {
-            Status = "WSL was not installed. You can try again, or run \"wsl --install\" yourself.";
-            return;
+            case WslInstallResult.Outcome.Declined:
+                Status = "WSL was not installed: the Windows prompt was declined. You can try again, or run \"wsl --install\" yourself.";
+                return;
+            case WslInstallResult.Outcome.Failed:
+                Status = $"WSL was not installed. {result.Error}";
+                return;
         }
+        _installedWslThisSession = true;
         await CheckAsync();
-        if (WslInstalled != true)
-            Status = "WSL has been installed. Restart Windows, then open OctezDesk again to continue.";
     }
 
-    private bool CanGoNext() => WslInstalled == true;
+    private bool CanGoNext() => Result?.CanContinue == true && !IsBusy;
 
     [RelayCommand(CanExecute = nameof(CanGoNext))]
-    private void Next() => _main.ShowNodeSetup();
+    private Task Next() => _main.ShowNodeSetupFromWelcomeAsync();
 }

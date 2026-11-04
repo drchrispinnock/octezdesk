@@ -4,6 +4,16 @@ using OctezDesk.Core.Hosting;
 
 namespace OctezDesk.Core.Wsl;
 
+/// <param name="Error">Why it failed, for <see cref="Outcome.Failed"/>.</param>
+public sealed record WslInstallResult(WslInstallResult.Outcome Result, string? Error = null)
+{
+    public enum Outcome { Installed, Declined, Failed }
+
+    public static readonly WslInstallResult Installed = new(Outcome.Installed);
+    public static readonly WslInstallResult Declined = new(Outcome.Declined);
+    public static WslInstallResult Failed(string error) => new(Outcome.Failed, error);
+}
+
 /// <summary>Windows-side management of WSL itself and of the OctezDesk distro (wsl.exe verbs).</summary>
 public sealed class WslManager
 {
@@ -37,10 +47,13 @@ public sealed class WslManager
 
     /// <summary>
     /// Runs <c>wsl --install --no-distribution</c> elevated (UAC prompt). A reboot may be needed afterwards.
-    /// Returns false if the user declined the UAC prompt.
+    /// Never throws for a failure to start it: the result says what happened.
     /// </summary>
-    public static async Task<bool> InstallWslElevatedAsync(CancellationToken ct = default)
+    public static async Task<WslInstallResult> InstallWslElevatedAsync(CancellationToken ct = default)
     {
+        if (!File.Exists(WslExe))
+            return WslInstallResult.Failed(
+                "This copy of Windows doesn't include wsl.exe. Update Windows (Windows 10 version 2004 or later, or Windows 11), then try again.");
         var psi = new ProcessStartInfo(WslExe, "--install --no-distribution")
         {
             UseShellExecute = true,
@@ -50,11 +63,17 @@ public sealed class WslManager
         {
             using var p = Process.Start(psi)!;
             await p.WaitForExitAsync(ct);
-            return p.ExitCode == 0;
+            return p.ExitCode == 0
+                ? WslInstallResult.Installed
+                : WslInstallResult.Failed($"\"wsl --install\" stopped with exit code {p.ExitCode}. Try running \"wsl --install\" yourself to see why.");
         }
         catch (Win32Exception ex) when (ex.NativeErrorCode == 1223) // ERROR_CANCELLED: UAC declined
         {
-            return false;
+            return WslInstallResult.Declined;
+        }
+        catch (Win32Exception ex)
+        {
+            return WslInstallResult.Failed($"Couldn't start the WSL installer: {ex.Message}");
         }
     }
 

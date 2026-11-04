@@ -5,6 +5,8 @@
     <DockPanel>
         <Border DockPanel.Dock="Bottom" Style="{StaticResource Footer}">
             <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
+                <Button Content="Cancel" MinWidth="96" Margin="0,0,24,0" Command="{Binding CancelCommand}"
+                        ToolTip="Leave setup. If a node is already set up, you return to the main screen; nothing is undone." />
                 <Button Content="Back" MinWidth="96" Command="{Binding BackCommand}" />
                 <Button Content="Retry" MinWidth="96" Margin="8,0,0,0" Command="{Binding RetryCommand}" />
                 <Button Content="Continue" MinWidth="96" Margin="8,0,0,0" IsDefault="True"
@@ -13,7 +15,7 @@
         </Border>
 
         <StackPanel DockPanel.Dock="Top">
-            <views:WizardSteps Current="3" />
+            <views:WizardSteps Current="6" />
             <TextBlock Style="{StaticResource PageTitle}" Text="Setting up your node" />
             <TextBlock Style="{StaticResource PageSubtitle}" Text="{Binding Status}" />
 

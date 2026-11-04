@@ -39,6 +39,8 @@ public partial class SetupProgressViewModel : ObservableObject
     private readonly MainViewModel _main;
     private readonly NodeSettings _settings;
     private readonly string _location;
+    private readonly BakingKeyChoice? _keys;
+    private readonly BakerSettings _baker;
     private readonly Provisioner _provisioner;
     private volatile bool _downloading;
 
@@ -46,11 +48,11 @@ public partial class SetupProgressViewModel : ObservableObject
     public LogBuffer Log { get; } = new();
 
     [ObservableProperty]
-    [NotifyCanExecuteChangedFor(nameof(RetryCommand), nameof(BackCommand), nameof(ContinueCommand))]
+    [NotifyCanExecuteChangedFor(nameof(RetryCommand), nameof(BackCommand), nameof(CancelCommand), nameof(ContinueCommand))]
     private bool _isRunning;
 
     [ObservableProperty]
-    [NotifyCanExecuteChangedFor(nameof(RetryCommand), nameof(BackCommand), nameof(ContinueCommand))]
+    [NotifyCanExecuteChangedFor(nameof(RetryCommand), nameof(BackCommand), nameof(CancelCommand), nameof(ContinueCommand))]
     private bool _succeeded;
 
     [ObservableProperty] private string _status = "Setting up…";
@@ -59,13 +61,17 @@ public partial class SetupProgressViewModel : ObservableObject
     [ObservableProperty] private bool _isIndeterminate = true;
     [ObservableProperty] private bool _showDetails;
 
-    public SetupProgressViewModel(MainViewModel main, NodeSettings settings, string location)
+    public SetupProgressViewModel(
+        MainViewModel main, NodeSettings settings, string location, BakingKeyChoice? keys, DalSettings dal, BakerSettings baker,
+        FundingSettings? funding)
     {
         _main = main;
         _settings = settings;
         _location = location;
+        _keys = keys;
+        _baker = baker;
         var s = main.Services;
-        _provisioner = ProvisioningPlans.WindowsNode(s.Wsl, s.Host, location, settings);
+        _provisioner = ProvisioningPlans.WindowsNode(s.Wsl, s.Host, location, settings, keys, dal, baker, funding);
         Steps = new(_provisioner.Steps.Select(step => new StepItem(step.Title)));
     }
 
@@ -133,10 +139,19 @@ public partial class SetupProgressViewModel : ObservableObject
     private Task Retry() => RunAsync();
 
     [RelayCommand(CanExecute = nameof(CanRetry))]
-    private void Back() => _main.ShowNodeSetup(_settings, _location);
+    private void Back() => _main.ShowDalSetup(_settings, _location, _keys, _baker);
+
+    /// <summary>Leaves a stopped setup: to the dashboard if a node is set up (e.g. the wizard was re-run), else to Welcome.</summary>
+    [RelayCommand(CanExecute = nameof(CanRetry))]
+    private Task Cancel() => _main.StartAsync();
 
     private bool CanContinue() => Succeeded;
 
+    /// <summary>To the baking keys (public keys and proofs) if any were set up, else the dashboard.</summary>
     [RelayCommand(CanExecute = nameof(CanContinue))]
-    private void Continue() => _main.ShowDashboard();
+    private async Task Continue()
+    {
+        if (_keys is null) _main.ShowDashboard();
+        else await _main.ShowRecordedBakingKeysAsync();
+    }
 }

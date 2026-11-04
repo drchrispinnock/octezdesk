@@ -17,6 +17,23 @@ public sealed record NodeSettingsRecord(string Network, string HistoryMode, int 
 
     public string ToJson() => JsonSerializer.Serialize(this, Json);
 
+    /// <summary>Same network and history mode: the chain data fits, and only ports or RPC access differ.</summary>
+    public bool IsSameChain(NodeSettingsRecord other) => Network == other.Network && HistoryMode == other.HistoryMode;
+
+    /// <summary>The wizard settings this record came from, e.g. to prefill the Node screen when the wizard is run again.</summary>
+    public NodeSettings? ToSettings()
+    {
+        var network = TezosNetwork.All.FirstOrDefault(n => n.Id == Network);
+        var mode = Enum.GetValues<HistoryMode>().Cast<HistoryMode?>().FirstOrDefault(m => m!.Value.ToCliValue() == HistoryMode);
+        if (network is null || mode is null) return null;
+        // An existing node already has its data, so a snapshot isn't needed.
+        return new NodeSettings
+        {
+            Network = network, HistoryMode = mode.Value, P2PPort = P2PPort, RpcPort = RpcPort, AllowAllRpc = AllowAllRpc,
+            ImportSnapshot = false,
+        };
+    }
+
     public static NodeSettingsRecord? TryParse(string? json)
     {
         if (string.IsNullOrWhiteSpace(json)) return null;

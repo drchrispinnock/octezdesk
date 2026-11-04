@@ -142,6 +142,64 @@ public class NodeStepTests
     }
 
     [Theory]
+    [InlineData("""{"rpc":{"listen-addrs":["127.0.0.1:8732"]}}""", true)]
+    [InlineData("""{"rpc":{"listen-addrs":["0.0.0.0:8732"]}}""", false)] // earlier builds: the DAL node was blocked by the ACL
+    [InlineData("""{"rpc":{"listen-addrs":["127.0.0.1:8732","0.0.0.0:8733"]}}""", false)]
+    public async Task Rpc_address_step_is_done_only_for_localhost(string config, bool done)
+    {
+        var host = FreshHost().OnFile("/n/config.json", config);
+        Assert.Equal(done, await new SetNodeRpcAddressStep(host, new NodeService(host), new NodeSettings()).IsDoneAsync(default));
+    }
+
+    [Fact]
+    public async Task Rpc_address_step_updates_config_and_restarts_a_running_node()
+    {
+        var host = FreshHost()
+            .OnFile("/n/config.json", """{"rpc":{"listen-addrs":["0.0.0.0:8732"]}}""")
+            .On(a => a is ["systemctl", "is-active", "--quiet", OctezPaths.NodeService]);
+        await new SetNodeRpcAddressStep(host, new NodeService(host), new NodeSettings()).RunAsync(_ => { }, default);
+
+        var call = Assert.Single(host.Calls, c => c.Argv is ["octez-node", "config", "update", ..]);
+        Assert.Equal(HostUser.Tezos, call.User);
+        Assert.Equal(["octez-node", "config", "update", "--data-dir", "/n", "--net-addr", "0.0.0.0:9732", "--rpc-addr", "127.0.0.1:8732"], call.Argv);
+        Assert.True(host.Ran("systemctl", "restart", OctezPaths.NodeService));
+    }
+
+    /// <summary>Re-running the wizard on a node with chain data and changing only RPC access or ports must not be a dead end.</summary>
+    [Fact]
+    public async Task Configure_updates_ports_and_rpc_in_place_for_the_same_chain()
+    {
+        var before = new NodeSettings { Network = TezosNetwork.Shadownet };
+        var after = before with { AllowAllRpc = true, RpcPort = 8733 };
+        var host = FreshHost()
+            .On(a => a is ["test", "-e", "/n/config.json"])
+            .On(a => a is ["test", "-d", "/n/store"])
+            .On(a => a is ["systemctl", "is-active", "--quiet", OctezPaths.NodeService])
+            .OnFile(OctezPaths.OctezDeskNodeSettingsFile, NodeSettingsRecord.From(before).ToJson());
+        await new ConfigureNodeStep(host, new NodeService(host), after).RunAsync(_ => { }, default);
+
+        Assert.True(host.Ran("octez-node", "config", "update", "--data-dir", "/n", "--net-addr", "0.0.0.0:9732",
+            "--rpc-addr", "127.0.0.1:8733", "--allow-all-rpc", "127.0.0.1:8733"));
+        Assert.False(host.Ran("rm"));
+        Assert.False(host.Ran("octez-node", "config", "init"));
+        var marker = Assert.Single(host.Calls, c => c.Argv[0] == "sh" && c.Argv[^1] == OctezPaths.OctezDeskNodeSettingsFile);
+        Assert.Equal(NodeSettingsRecord.From(after), NodeSettingsRecord.TryParse(marker.StdIn));
+        Assert.True(host.Ran("systemctl", "restart", OctezPaths.NodeService));
+    }
+
+    [Fact]
+    public async Task Configure_refuses_a_different_network_with_chain_data()
+    {
+        var host = FreshHost()
+            .On(a => a is ["test", "-e", "/n/config.json"])
+            .On(a => a is ["test", "-d", "/n/store"])
+            .OnFile(OctezPaths.OctezDeskNodeSettingsFile, NodeSettingsRecord.From(new NodeSettings { Network = TezosNetwork.Shadownet }).ToJson());
+        await Assert.ThrowsAsync<InvalidOperationException>(
+            () => new ConfigureNodeStep(host, new NodeService(host), new NodeSettings()).RunAsync(_ => { }, default));
+        Assert.False(host.Ran("octez-node"));
+    }
+
+    [Theory]
     [InlineData("trixie\n", true)]
     [InlineData("bookworm\n", false)]
     public async Task Release_check_requires_trixie(string codename, bool done)

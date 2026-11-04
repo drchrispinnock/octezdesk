@@ -12,26 +12,21 @@
         <!-- Each page view model is rendered by its view -->
         <DataTemplate DataType="{x:Type vm:WelcomeViewModel}"><views:WelcomeView /></DataTemplate>
         <DataTemplate DataType="{x:Type vm:NodeSetupViewModel}"><views:NodeSetupView /></DataTemplate>
+        <DataTemplate DataType="{x:Type vm:BakingKeysViewModel}"><views:BakingKeysView /></DataTemplate>
+        <DataTemplate DataType="{x:Type vm:FundingViewModel}"><views:FundingView /></DataTemplate>
+        <DataTemplate DataType="{x:Type vm:DalSetupViewModel}"><views:DalSetupView /></DataTemplate>
         <DataTemplate DataType="{x:Type vm:SetupProgressViewModel}"><views:SetupProgressView /></DataTemplate>
+        <DataTemplate DataType="{x:Type vm:BakingKeysResultViewModel}"><views:BakingKeysResultView /></DataTemplate>
         <DataTemplate DataType="{x:Type vm:DashboardViewModel}"><views:DashboardView /></DataTemplate>
 
         <local:HealthBrushConverter x:Key="HealthBrush" />
         <local:StepStatusBrushConverter x:Key="StepBrush" />
         <BooleanToVisibilityConverter x:Key="BoolToVisibility" />
         <local:NullToCollapsedConverter x:Key="NullToCollapsed" />
+        <local:KeyTypeLabelConverter x:Key="KeyTypeLabel" />
 
-        <!-- App icon: a node hexagon in Tezos blue -->
-        <DrawingImage x:Key="AppIcon">
-            <DrawingImage.Drawing>
-                <DrawingGroup>
-                    <GeometryDrawing Brush="#2C7DF7" Geometry="M12,1 L21.5,6.5 L21.5,17.5 L12,23 L2.5,17.5 L2.5,6.5 Z" />
-                    <GeometryDrawing Geometry="M12,12 L12,4.5 M12,12 L18.5,15.75 M12,12 L5.5,15.75">
-                        <GeometryDrawing.Pen><Pen Brush="White" Thickness="1.6" StartLineCap="Round" EndLineCap="Round" /></GeometryDrawing.Pen>
-                    </GeometryDrawing>
-                    <GeometryDrawing Brush="White" Geometry="M12,9.4 A2.6,2.6 0 1 1 11.99,9.4 Z" />
-                </DrawingGroup>
-            </DrawingImage.Drawing>
-        </DrawingImage>
+        <!-- App icon (spec/icon.png, resized; the window and exe use Assets/OctezDesk.ico) -->
+        <BitmapImage x:Key="AppIcon" UriSource="pack://application:,,,/Assets/icon-256.png" />
 
         <Style x:Key="PageTitle" TargetType="TextBlock">
             <Setter Property="FontSize" Value="26" />

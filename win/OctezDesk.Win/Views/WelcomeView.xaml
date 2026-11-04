@@ -18,8 +18,10 @@
                     <Image Source="{StaticResource AppIcon}" Width="48" Height="48" Margin="0,0,16,0" />
                     <TextBlock Style="{StaticResource PageTitle}" VerticalAlignment="Center" Text="Welcome to OctezDesk" />
                 </StackPanel>
-                <TextBlock Style="{StaticResource PageSubtitle}" Margin="0,8,0,20"
-                           Text="OctezDesk runs a Tezos node on this PC and keeps an eye on it for you." />
+                <TextBlock Style="{StaticResource PageSubtitle}" Margin="0,8,0,8"
+                           Text="The control panel for Octez, the Tezos blockchain software." />
+                <TextBlock TextWrapping="Wrap" Margin="0,0,0,20"
+                           Text="To use OctezDesk on Mainnet, you'll need a funded account and access to it with a wallet capable of baking operations (like octez-client or Signet). You can use OctezDesk on the test networks and we will fund the keys for you if you want." />
 
                 <Border Style="{StaticResource Card}">
                     <StackPanel>
@@ -36,14 +38,18 @@
                 <Border Style="{StaticResource Card}">
                     <DockPanel>
                         <Ellipse DockPanel.Dock="Left" Width="12" Height="12" VerticalAlignment="Top" Margin="0,4,12,0"
-                                 Fill="{Binding WslLevel, Converter={StaticResource HealthBrush}}" />
+                                 Fill="{Binding Level, Converter={StaticResource HealthBrush}}" />
                         <StackPanel>
-                            <TextBlock Style="{StaticResource SectionTitle}" Margin="0,0,0,4" Text="Windows Subsystem for Linux" />
+                            <TextBlock Style="{StaticResource SectionTitle}" Margin="0,0,0,4" Text="This PC" />
                             <TextBlock TextWrapping="Wrap" Text="{Binding Status}" />
+                            <TextBlock Style="{StaticResource Hint}" Margin="0,6,0,0" Text="{Binding Warning}"
+                                       Visibility="{Binding Warning, Converter={StaticResource NullToCollapsed}}" />
                             <StackPanel Orientation="Horizontal" Margin="0,12,0,0"
-                                        Visibility="{Binding NeedsWsl, Converter={StaticResource BoolToVisibility}}">
-                                <Button Content="Install WSL…" Style="{DynamicResource AccentButtonStyle}" Command="{Binding InstallWslCommand}" />
-                                <Button Content="Check again" Margin="8,0,0,0" Command="{Binding CheckCommand}" />
+                                        Visibility="{Binding ShowActions, Converter={StaticResource BoolToVisibility}}">
+                                <Button Content="Install WSL…" Style="{DynamicResource AccentButtonStyle}" Margin="0,0,8,0"
+                                        Command="{Binding InstallWslCommand}"
+                                        Visibility="{Binding CanInstallWsl, Converter={StaticResource BoolToVisibility}}" />
+                                <Button Content="Check again" Command="{Binding CheckCommand}" />
                             </StackPanel>
                         </StackPanel>
                     </DockPanel>

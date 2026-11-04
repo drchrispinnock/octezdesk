@@ -2,6 +2,7 @@
 using OctezDesk.Core;
 using OctezDesk.Core.Health;
 using OctezDesk.Core.Octez;
+using OctezDesk.Core.Provisioning;
 using OctezDesk.Core.Wsl;
 using OctezDesk.Win.ViewModels;
 
@@ -15,6 +16,13 @@ public sealed class AppServices
     public NodeService Node { get; }
     public NodeMonitor Monitor { get; }
     public InstallationProbe Probe { get; }
+    public BakingKeyService Keys { get; }
+    /// <summary>The master key's on-chain state (balance, stake, delegate registration).</summary>
+    public MasterAccount Account { get; }
+    public DalNodeService Dal { get; }
+    public DalMonitor DalMonitor { get; }
+    public BakerService Baker { get; }
+    public BakerMonitor BakerMonitor { get; }
 
     public AppServices()
     {
@@ -22,6 +30,13 @@ public sealed class AppServices
         Node = new NodeService(Host);
         Monitor = new NodeMonitor(Host, Node);
         Probe = new InstallationProbe(Wsl, Node);
+        var client = new OctezClient(Host);
+        Keys = new BakingKeyService(Host, client);
+        Account = new MasterAccount(Host, Node, client);
+        Dal = new DalNodeService(Host);
+        DalMonitor = new DalMonitor(Dal);
+        Baker = new BakerService(Host);
+        BakerMonitor = new BakerMonitor(Baker);
     }
 }
 
