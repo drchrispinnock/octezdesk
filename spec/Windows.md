@@ -192,19 +192,27 @@ common/   OctezDesk.Core  (class library, no UI)
           ├─ NodeHealth         systemd state + RPC polling → Green/Yellow/Red
           └─ WslManager         (win-only bits: detect/install WSL, import/unregister distro, keep-alive)
 win/      OctezDesk.Win  (WPF or WinUI 3 front end, tray icon, Task Scheduler autostart)
-installer/ WiX MSI (per-user install, no admin needed)
+scripts/release.ps1  Velopack installer and update packages (see §4.1)
 gtk/      later: GTK 4 front end on the same Core (GirCore bindings)
 mac/      later
 tests/    Core unit tests against a fake IOctezHost; optional integration tests against a real WSL distro
 ```
 
 - `IOctezHost` is where the platforms meet. On Linux the Provisioner, NodeConfig and NodeHealth classes run unchanged against a local host; only `WslManager` is specific to Windows.
-- **WPF vs WinUI 3:** WPF is mature and packages simply with WiX. WinUI 3 looks more modern but brings Windows App SDK runtime and packaging overhead. Leaning WPF for Objective 1.
+- **WPF vs WinUI 3:** WPF is mature and packages simply (Velopack, §4.1). WinUI 3 looks more modern but brings Windows App SDK runtime and packaging overhead. Leaning WPF for Objective 1.
 - **wsl.exe quirks:**
   - wsl.exe's own messages come out as UTF-16LE. Set `WSL_UTF8=1` when launching it.
   - Output from the Linux command passes through as UTF-8.
   - Always pass `--` before the command.
   - Avoid going through a shell where we can, and quote carefully where we can't.
+
+### 4.1 Packaging and updates (from 0.2)
+**Decision (2026-11-04): Velopack instead of a WiX MSI**, because it does both installing and self-updating.
+- **Installer.** `OctezDesk.Win-win-Setup.exe` installs per user into `%LocalAppData%\OctezDesk.Win`, without admin, and adds Start menu and desktop shortcuts. The build is self-contained win-x64, about 73 MB, so no .NET runtime is needed. Unsigned for now: SmartScreen warns until there's a certificate, and `vpk pack` takes `--signParams` or `--azureTrustedSignFile` when there is.
+- **Pack ID `OctezDesk.Win`, not `OctezDesk`.** Uninstalling deletes `%LocalAppData%\<packId>`, and `%LocalAppData%\OctezDesk\wsl` holds the node's VHDX. Uninstalling removes the app only. The distro, node data and keys stay; `wsl --unregister OctezDesk` removes them.
+- **Updates.** Releases are on the public GitHub repo, made by `scripts/release.ps1 -Publish`. The dashboard checks at start and every 6 hours, and downloads in the background, as a delta when possible (0.3 MB in testing). A banner then offers **Restart now**. Otherwise the update installs silently when the window closes. ☰ → *Check for OctezDesk updates* checks straight away.
+- **The keep-alive helper during an update.** Velopack's `OnBeforeUpdateFastCallback` stops the helper, because it runs from the exe being replaced. **After its hooks, Velopack kills every process left running from the app folder**, so nothing is started from a hook. Instead Velopack restarts the app: as the GUI after Restart now (the dashboard starts the helper), or with `--keep-alive` for an update applied on close. Tested 2026-11-04 with a local feed (0.1.92 → 0.1.93, applied on close): the helper came back from the new version, and the node, DAL node and baker kept running without a restart. Uninstalling stops the helper and removes the sign-in Run entry; that's tested too.
+- **Testing updates locally:** set `OCTEZDESK_UPDATE_URL` to a folder of `vpk pack` output.
 
 ## 5. Open questions
 1. ~~Stack~~: decided, C#/.NET 10 + WPF.

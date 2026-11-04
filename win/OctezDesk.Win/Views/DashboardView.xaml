@@ -23,6 +23,7 @@
             <Menu DockPanel.Dock="Right" Background="Transparent" VerticalAlignment="Center">
                 <MenuItem Header="☰" FontSize="18" Padding="10,4" ToolTip="Menu">
                     <MenuItem Header="Upgrade Octez" Command="{Binding UpgradeCommand}" />
+                    <MenuItem Header="Check for OctezDesk updates" Command="{Binding CheckForUpdatesCommand}" />
                     <MenuItem Header="Reconfigure…" Command="{Binding ReconfigureCommand}" ToolTip="Coming soon" />
                     <MenuItem Header="Restart node" Command="{Binding RestartCommand}" />
                     <MenuItem Header="Shut down node" Command="{Binding ShutdownCommand}" />
@@ -49,8 +50,20 @@
             </Border>
         </DockPanel>
 
-        <TextBlock DockPanel.Dock="Bottom" Style="{StaticResource Hint}" Margin="0,10,0,0"
-                   Text="The node keeps running in the background when you close OctezDesk." />
+        <DockPanel DockPanel.Dock="Bottom" Margin="0,10,0,0">
+            <TextBlock DockPanel.Dock="Right" Style="{StaticResource Hint}" Text="{Binding AppVersionText}" />
+            <TextBlock Style="{StaticResource Hint}" Text="The node keeps running in the background when you close OctezDesk." />
+        </DockPanel>
+
+        <!-- An OctezDesk update has been downloaded -->
+        <Border DockPanel.Dock="Top" Style="{StaticResource Card}"
+                Visibility="{Binding UpdateReadyText, Converter={StaticResource NullToCollapsed}}">
+            <DockPanel>
+                <Button DockPanel.Dock="Right" Content="Restart now" Style="{DynamicResource AccentButtonStyle}" Margin="12,0,0,0"
+                        VerticalAlignment="Center" Command="{Binding RestartToUpdateCommand}" />
+                <TextBlock TextWrapping="Wrap" VerticalAlignment="Center" Text="{Binding UpdateReadyText}" />
+            </DockPanel>
+        </Border>
 
         <!-- Services -->
         <Border DockPanel.Dock="Top" Style="{StaticResource Card}">

@@ -19,6 +19,8 @@ public sealed class AppServices
     public BakingKeyService Keys { get; }
     /// <summary>The master key's on-chain state (balance, stake, delegate registration).</summary>
     public MasterAccount Account { get; }
+    /// <summary>Updates OctezDesk itself (Velopack, from GitHub Releases).</summary>
+    public AppUpdater Updater { get; } = new();
     public DalNodeService Dal { get; }
     public DalMonitor DalMonitor { get; }
     public BakerService Baker { get; }
@@ -49,12 +51,22 @@ public partial class App : Application
     /// <summary>Developer switch: start in the setup wizard even if the node is already set up.</summary>
     public const string WizardSwitch = "--wizard";
 
+    private AppServices? _services;
+
     protected override async void OnStartup(StartupEventArgs e)
     {
         base.OnStartup(e);
-        var main = new MainViewModel(new AppServices());
+        _services = new AppServices();
+        var main = new MainViewModel(_services);
         MainWindow = new MainWindow { DataContext = main };
         MainWindow.Show();
         await main.StartAsync(forceWizard: e.Args.Contains(WizardSwitch));
+    }
+
+    /// <summary>An update downloaded while the window was open is installed once it closes.</summary>
+    protected override void OnExit(ExitEventArgs e)
+    {
+        _services?.Updater.ApplyOnExit();
+        base.OnExit(e);
     }
 }

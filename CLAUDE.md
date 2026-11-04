@@ -22,6 +22,17 @@ dotnet test tests/OctezDesk.Core.Tests --filter "FullyQualifiedName~HealthEvalua
 dotnet test tests/OctezDesk.Core.Tests --filter "DisplayName~Archive_cannot_use_snapshot"  # one test
 dotnet run --project win/OctezDesk.Win
 dotnet run --project win/OctezDesk.Win -- --wizard   # open the setup wizard even if the node is already set up
+./scripts/release.ps1 -Version 0.2.1             # build the installer and update packages into artifacts/releases
+./scripts/release.ps1 -Version 0.2.1 -Publish    # ...and publish GitHub release v0.2.1, which installed copies update from
+```
+
+**Releases use Velopack** (`vpk` CLI 1.2.161, matching the `Velopack` NuGet package; keep the two versions in step). The script runs the tests, publishes self-contained win-x64, downloads the previous release for a delta, then runs `vpk pack`. Bump `<Version>` in `OctezDesk.Win.csproj` to match. Release notes go in `release-notes/<version>.md`. Builds are unsigned for now. Rules:
+- The pack ID is **`OctezDesk.Win`**, never `OctezDesk`. Velopack installs to `%LocalAppData%\<packId>` and deletes that folder on uninstall, and `%LocalAppData%\OctezDesk\wsl` holds the node's VHDX.
+- The channel is always `win`.
+- Updates come from GitHub Releases on the public repo (`AppUpdater`). Set `OCTEZDESK_UPDATE_URL` to a folder of `vpk pack` output to test against a local feed instead. A copy run from `bin/` never updates.
+- **After its hooks, Velopack kills every process left running from the app folder.** So an update stops the keep-alive helper first (`OnBeforeUpdateFastCallback`). The helper is started again by Velopack restarting the app: as the GUI for "Restart now", or with `--keep-alive` for an update applied when the window closes. Don't start it from a hook.
+
+```
 ```
 
 **The keep-alive helper locks the build output.** `OctezDesk.Win.exe --keep-alive` runs from `bin/`, so the next build fails with "file is locked by OctezDesk.Win". Stop it gracefully before building:
@@ -100,7 +111,7 @@ Upgrades are done with `apt`.
 
 - Reconfigure. Its menu item is disabled; see spec/Windows.md §2.5.
 - A design pass on the UX: the screens are functional but use unstyled default WPF.
-- The MSI installer, planned to use WiX.
+- Code signing of the installer and app (SmartScreen warns "unknown publisher" until then).
 - Allowing incoming P2P connections into WSL.
 
 The open questions in spec/Windows.md §5 are still unresolved.
