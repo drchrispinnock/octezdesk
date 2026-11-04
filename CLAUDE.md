@@ -61,17 +61,18 @@ Upgrades are done with `apt`.
 - `ProvisioningPlans.WindowsNode` assembles the Windows plan:
   1. create the distro (Debian, checked to be trixie);
   2. enable systemd through `/etc/wsl.conf`;
-  3. install packages (`extrepo enable tzinit`, falling back to a manual keyring with a fingerprint check);
-  4. `octez-node config init`, run as tezos;
-  5. snapshot import, run as a transient systemd unit `octezdesk-snapshot` so it survives the GUI closing;
-  6. `systemctl enable --now octez-node`.
+  3. enable WSL mirrored networking in the user's global `%UserProfile%.wslconfig` (`EnableMirroredNetworkingStep`). It never fails setup, leaves a mode the user chose alone, and only runs `wsl --shutdown` when no other distro is running;
+  4. install packages (`extrepo enable tzinit`, falling back to a manual keyring with a fingerprint check);
+  5. `octez-node config init`, run as tezos;
+  6. snapshot import, run as a transient systemd unit `octezdesk-snapshot` so it survives the GUI closing;
+  7. `systemctl enable --now octez-node`.
 
 **Configured settings are recorded in the distro.** `ConfigureNodeStep` writes `/var/tezos/.octezdesk-node.json` (`NodeSettingsRecord`). The step counts as done only if that record matches the wizard's choices, so going Back and changing the network doesn't silently keep the old config. A config that doesn't match is replaced only if there's no chain data yet.
 
 **State comes from the distro, not from Windows settings.** `InstallationProbe` checks whether WSL is installed, whether the distro exists, and whether the package and `config.json` are present. It uses that to pick between the wizard and the dashboard at startup.
 
 **Health (`Core/Health`):**
-- `NodeMonitor` gathers systemd state plus node RPC calls. The RPC calls run **inside the host** (`wget` to `127.0.0.1:<port>`, using the port from the node's `config.json`). We don't use WSL localhost forwarding, because it didn't work on the dev machine; see spec/Windows.md §2.7.
+- `NodeMonitor` gathers systemd state plus node RPC calls. The RPC calls run **inside the host** (`wget` to `127.0.0.1:<port>`, using the port from the node's `config.json`). They don't depend on Windows reaching the distro. The node listens on `0.0.0.0`, and with mirrored networking Windows tools reach it at `127.0.0.1:<port>` (NAT-mode localhost forwarding didn't work on the dev machine; see spec/Windows.md §2.7).
 - The pure function `HealthEvaluator` maps that to Red, Yellow or Green. The rules are unit-tested; change them there.
 
 **WSL specifics (`Core/Wsl`):**

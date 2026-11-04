@@ -25,7 +25,10 @@ public sealed record TezosNetwork(string Id, string DisplayName, string ConfigVa
     public static readonly TezosNetwork Mainnet = new("mainnet", "Mainnet", "mainnet");
     public static readonly TezosNetwork Shadownet = new("shadownet", "Shadownet", "https://teztnets.com/shadownet");
 
-    public static IReadOnlyList<TezosNetwork> All { get; } = [Mainnet, Shadownet];
+    public static readonly TezosNetwork Bakingnet = new("bakingnet", "Bakingnet", "https://teztnets.com/bakingnet");
+    public static readonly TezosNetwork Ushuaianet = new("ushuaianet", "Ushuaianet", "https://teztnets.com/ushuaianet");
+
+    public static IReadOnlyList<TezosNetwork> All { get; } = [Mainnet, Shadownet, Bakingnet, Ushuaianet];
 
     /// <summary>
     /// tzinit snapshot URL. Confirmed for mainnet; the scheme for test networks is assumed

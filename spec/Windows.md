@@ -62,10 +62,10 @@ apt-get install -y octez-node octez-client
 ### 2.5 Configuring the node (screen 2 → commands)
 | Wizard field | Becomes |
 |---|---|
-| Network (Mainnet, Shadownet, …) | `--network=mainnet`, or a teztnets URL such as `https://teztnets.com/shadownet` |
+| Network (Mainnet, Shadownet, Bakingnet, Ushuaianet) | `--network=mainnet`, or a teztnets URL such as `https://teztnets.com/shadownet` |
 | History mode (rolling / full / archive) | `--history-mode=rolling` |
-| Gossip port (9732) | `--net-addr="[::]:9732"` |
-| RPC port (8732) | `--rpc-addr="127.0.0.1:8732"` |
+| Gossip port (9732) | `--net-addr="0.0.0.0:9732"` |
+| RPC port (8732) | `--rpc-addr="0.0.0.0:8732"` |
 | Enable all RPC | `--allow-all-rpc=127.0.0.1:8732` |
 | Install from snapshot | §2.6 |
 
@@ -86,11 +86,13 @@ Run as `tezos`: `runuser -u tezos -- octez-node config init --data-dir /var/tezo
 - Without a snapshot, start the node straight away; it syncs from genesis.
 
 ### 2.7 Networking
-- **RPC from Windows:** we expected WSL 2's default localhost forwarding to make the node's ports reachable at `localhost` on Windows. **It did not on the dev machine** (NAT mode, no `.wslconfig`): neither 8732 nor 9732 was reachable from Windows. So health checks run **inside the distro** (`wget http://127.0.0.1:<port>/…` via `IOctezHost`), which is also how a Linux build will work. We still need to understand why the forwarding failed (possibly Docker Desktop's distro), before exposing the RPC to Windows-side wallets or tools.
-- **Inbound P2P (9732):** WSL 2's default NAT mode allows outbound connections only. A node works fine that way, though with fewer peers. Inbound connections need one of these:
-  - `networkingMode=mirrored` in `%USERPROFILE%\.wslconfig` (Windows 11 22H2+) plus a Hyper-V firewall rule. Note that `.wslconfig` is **global to all of the user's distros**.
-  - A `netsh interface portproxy` rule plus a Windows Firewall rule. This needs admin, and the WSL IP changes on every restart.
-  - **Decision needed.** Proposal: outbound-only for Objective 1, with mirrored mode as an opt-in advanced setting later.
+- **RPC from Windows:** we expected WSL 2's default localhost forwarding to make the node's ports reachable at `localhost` on Windows. **It did not on the dev machine** (NAT mode, no `.wslconfig`): neither 8732 nor 9732 was reachable from Windows, even with the node listening on `0.0.0.0`; only the distro's own IP worked.
+  - **Decision (2026-11-04): use mirrored networking.** `EnableMirroredNetworkingStep`, run after systemd is enabled, adds `networkingMode=mirrored` under `[wsl2]` in `%USERPROFILE%\.wslconfig` (backing up an existing file to `.wslconfig.octezdesk-backup`) and runs `wsl --shutdown`. Verified on the dev machine: `http://127.0.0.1:8732` then works from Windows.
+  - `.wslconfig` is **global to all of the user's distros**, so the step never fails setup. It leaves a `networkingMode` the user set themselves alone. It doesn't run `wsl --shutdown` while another distro is running; it logs that the change applies at the next WSL restart. On Windows 10 (mirrored needs Windows 11 22H2+) WSL falls back to NAT, and the step logs that.
+  - The node listens on `0.0.0.0` (IPv4 only), so `127.0.0.1` works but `[::1]` doesn't. Clients that try `localhost` as IPv6 first may need `127.0.0.1`.
+  - With mirrored mode, the Hyper-V firewall's default inbound action is Block, so the node's ports are reachable from this PC but not from the LAN.
+  - Health checks still run **inside the distro** (`wget http://127.0.0.1:<port>/…` via `IOctezHost`), which is also how a Linux build will work.
+- **Inbound P2P (9732):** NAT mode allows outbound connections only, and mirrored mode's Hyper-V firewall blocks inbound by default. A node works fine that way, though with fewer peers. Inbound connections would need a Hyper-V firewall rule for 9732 (mirrored mode). **Not done yet.**
 - `.wslconfig` also caps WSL memory (default 50% of RAM), and that cap is global too. Leave it alone for now.
 
 ## 3. Wizard flow on Windows
@@ -99,15 +101,16 @@ Run as `tezos`: `runuser -u tezos -- octez-node config init --data-dir /var/tezo
    - If WSL is missing, offer to run `wsl --install --no-distribution`. This shows a UAC prompt and may require a reboot. The wizard resumes after the reboot.
    - If the `OctezDesk` distro already exists with a configured node, skip straight to Main.
 2. **Node.** The fields from the spec, plus the **data location** (where the VHDX goes) and a free-space hint.
-   - The ports are validated, and we check they're free on Windows, because localhost forwarding can clash with them.
+   - The ports are validated, and we check they're free on Windows, because with mirrored networking the distro shares Windows' ports.
    - Next button reads "Set up".
 3. **Setting up (progress).** A checklist with a live log:
    1. create the distro;
    2. enable systemd;
-   3. add the repo and install;
-   4. `config init`;
-   5. snapshot download and import;
-   6. enable and start the node.
+   3. enable mirrored networking (§2.7);
+   4. add the repo and install;
+   5. `config init`;
+   6. snapshot download and import;
+   7. enable and start the node.
 
    Each step is idempotent and re-checks the actual state, so a failed or interrupted run can be retried from the failing step.
 4. **Main (screen 6), node row only:**

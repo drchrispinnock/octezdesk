@@ -162,7 +162,7 @@ public partial class NodeSetupViewModel : ObservableObject
         };
         if (problems.Count == 0) problems.AddRange(settings.Validate());
 
-        // Ports in use on Windows can clash if WSL forwards them to localhost.
+        // With WSL mirrored networking the distro shares Windows' ports, so these would clash.
         if (problems.Count == 0)
         {
             var listening = IPGlobalProperties.GetIPGlobalProperties().GetActiveTcpListeners().Select(e => e.Port).ToHashSet();

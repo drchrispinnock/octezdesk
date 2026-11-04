@@ -91,6 +91,7 @@ public class NodeStepTests
     private static FakeHost FreshHost() => new FakeHost()
         .OnFile(OctezPaths.NodeDefaultsFile, "DATADIR=/n")
         .On(a => a[0] == "test", exitCode: 1)
+        .On(a => a is ["systemctl", "is-active", ..], exitCode: 3)
         .On(a => a is ["cat", OctezPaths.OctezDeskNodeSettingsFile], exitCode: 1);
 
     [Fact]
@@ -113,6 +114,19 @@ public class NodeStepTests
         await new ConfigureNodeStep(host, new NodeService(host), new NodeSettings()).RunAsync(_ => { }, default);
 
         Assert.True(host.Ran("rm", "-f", "/n/config.json"));
+        Assert.True(host.Ran("octez-node", "config", "init"));
+    }
+
+    [Fact]
+    public async Task Configure_cancels_a_running_import_for_the_old_settings()
+    {
+        var host = FreshHost()
+            .On(a => a is ["test", "-e", "/n/config.json"])
+            .On(a => a is ["systemctl", "is-active", "--quiet", ImportSnapshotStep.UnitName]);
+        await new ConfigureNodeStep(host, new NodeService(host), new NodeSettings()).RunAsync(_ => { }, default);
+
+        Assert.True(host.Ran("systemctl", "stop", ImportSnapshotStep.UnitName));
+        Assert.True(host.Ran("rm", "-f", ImportSnapshotStep.DownloadFile));
         Assert.True(host.Ran("octez-node", "config", "init"));
     }
 

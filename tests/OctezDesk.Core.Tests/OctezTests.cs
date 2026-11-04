@@ -23,7 +23,7 @@ public class NodeSettingsTests
         var s = new NodeSettings { Network = TezosNetwork.Shadownet, HistoryMode = HistoryMode.Full, P2PPort = 9733, RpcPort = 8733 };
         Assert.Equal(
             ["octez-node", "config", "init", "--data-dir", "/d", "--network", "https://teztnets.com/shadownet",
-             "--history-mode", "full", "--net-addr", "[::]:9733", "--rpc-addr", "127.0.0.1:8733"],
+             "--history-mode", "full", "--net-addr", "0.0.0.0:9733", "--rpc-addr", "0.0.0.0:8733"],
             s.ConfigInitArgv("/d"));
     }
 
@@ -31,7 +31,7 @@ public class NodeSettingsTests
     public void AllowAllRpc_adds_flag_for_rpc_address()
     {
         var argv = new NodeSettings { AllowAllRpc = true }.ConfigInitArgv("/d");
-        Assert.Equal(["--allow-all-rpc", "127.0.0.1:8732"], argv.TakeLast(2));
+        Assert.Equal(["--allow-all-rpc", "0.0.0.0:8732"], argv.TakeLast(2));
     }
 
     [Theory]

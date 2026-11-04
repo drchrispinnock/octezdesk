@@ -62,6 +62,15 @@ public sealed class ConfigureNodeStep(IOctezHost host, NodeService node, NodeSet
 
         if (await host.FileExistsAsync(configFile, ct))
         {
+            // An import still running is for the old settings; the import step would otherwise
+            // re-attach to it and import the wrong network's snapshot.
+            if ((await host.RunAsync(["systemctl", "is-active", "--quiet", ImportSnapshotStep.UnitName], ct: ct)).Success)
+            {
+                log("Cancelling the snapshot import for the previous settings.");
+                (await host.RunAsync(["systemctl", "stop", ImportSnapshotStep.UnitName], ct: ct)).EnsureSuccess("Stopping the snapshot import");
+                await host.RunAsync(["rm", "-f", ImportSnapshotStep.DownloadFile], ct: ct);
+            }
+
             if (await node.HasChainDataAsync(ct))
                 throw new InvalidOperationException(
                     "The node is already set up with different settings and has chain data. " +
@@ -84,10 +93,12 @@ public sealed class ImportSnapshotStep(IOctezHost host, NodeService node, NodeSe
 {
     public const string UnitName = "octezdesk-snapshot";
 
-    // $1 = snapshot URL, $2 = node data dir
+    public const string DownloadFile = OctezPaths.TezosHome + "/octezdesk-snapshot";
+
+    // $1 = snapshot URL, $2 = node data dir, $3 = download file
     private const string ImportScript = """
         set -e
-        f=/var/tezos/octezdesk-snapshot
+        f="$3"
         wget --progress=dot:giga -O "$f" "$1"
         octez-node snapshot import "$f" --data-dir "$2"
         rm -f "$f"
@@ -124,7 +135,7 @@ public sealed class ImportSnapshotStep(IOctezHost host, NodeService node, NodeSe
                     [
                         "systemd-run", "--unit", UnitName, "--wait", "--collect", "--quiet",
                         "--uid=tezos", "--gid=tezos", "--property=WorkingDirectory=" + OctezPaths.TezosHome,
-                        "sh", "-c", ImportScript, "sh", url, dataDir,
+                        "sh", "-c", ImportScript, "sh", url, dataDir, DownloadFile,
                     ],
                     onLine: log, ct: ct)).EnsureSuccess("Snapshot import");
             }

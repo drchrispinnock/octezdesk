@@ -14,9 +14,10 @@ public sealed record NodeSettings
     public bool AllowAllRpc { get; init; }
     public bool ImportSnapshot { get; init; } = true;
 
-    public string NetAddr => $"[::]:{P2PPort}";
-    /// <summary>RPC listens on localhost only; WSL's localhost forwarding exposes it to Windows.</summary>
-    public string RpcAddr => $"127.0.0.1:{RpcPort}";
+    // Both listen on all IPv4 interfaces. With WSL mirrored networking (EnableMirroredNetworkingStep)
+    // Windows reaches them at 127.0.0.1; without it, at the distro's own IP (spec/Windows.md §2.7).
+    public string NetAddr => $"0.0.0.0:{P2PPort}";
+    public string RpcAddr => $"0.0.0.0:{RpcPort}";
 
     public IReadOnlyList<string> Validate()
     {

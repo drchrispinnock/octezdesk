@@ -77,6 +77,72 @@ public sealed class EnableSystemdStep(WslManager wsl, IOctezHost host) : IProvis
     }
 }
 
+/// <summary>
+/// Switches WSL to mirrored networking so the node's ports are reachable at localhost on Windows.
+/// The default NAT mode's localhost forwarding proved unreliable (spec/Windows.md §2.7).
+/// <para>
+/// .wslconfig is global to WSL, so this step is careful and never fails setup: it leaves a
+/// networking mode the user chose alone, and it only restarts WSL (<c>wsl --shutdown</c>) when no
+/// other distro is running. Otherwise it logs what to do and lets setup continue.
+/// </para>
+/// </summary>
+public sealed class EnableMirroredNetworkingStep(WslManager wsl, IOctezHost host, string wslConfigPath) : IProvisioningStep
+{
+    public string Title => "Make the node reachable at localhost (WSL mirrored networking)";
+
+    public async Task<bool> IsDoneAsync(CancellationToken ct)
+        => await GetActiveModeAsync(ct) == WslConfigFile.Mirrored
+           || UserChoseOtherMode(ReadConfig());
+
+    public async Task RunAsync(Action<string> log, CancellationToken ct)
+    {
+        var content = ReadConfig();
+        if (WslConfigFile.GetNetworkingMode(content) is null)
+        {
+            if (content is not null && !File.Exists(BackupPath))
+                File.Copy(wslConfigPath, BackupPath);
+            await File.WriteAllTextAsync(wslConfigPath, WslConfigFile.WithMirroredNetworking(content), ct);
+            log($"Set networkingMode=mirrored in {wslConfigPath}" + (content is null ? "" : $" (backup: {BackupPath})"));
+        }
+
+        var others = (await wsl.ListRunningDistrosAsync(ct))
+            .Where(d => !d.Equals(wsl.DistroName, StringComparison.OrdinalIgnoreCase))
+            .ToList();
+        if (others.Count > 0)
+        {
+            log($"Not restarting WSL because other distros are running ({string.Join(", ", others)}). " +
+                "The change takes effect the next time WSL restarts; run \"wsl --shutdown\" when convenient. " +
+                "Until then the node is reachable from Windows only at the distro's IP address.");
+            return;
+        }
+
+        log("Restarting WSL to apply the new networking mode");
+        await WslManager.ShutdownAsync(ct);
+        // This call boots the distro again; wait for systemd to settle ("degraded" exits non-zero but is fine).
+        await host.RunAsync(["systemctl", "is-system-running", "--wait"], onLine: log, ct: ct);
+
+        var mode = await GetActiveModeAsync(ct);
+        if (mode != WslConfigFile.Mirrored)
+            log($"WSL is still using '{mode ?? "unknown"}' networking (mirrored needs Windows 11 22H2 or later). " +
+                "The node is reachable from Windows only at the distro's IP address.");
+    }
+
+    private string BackupPath => wslConfigPath + ".octezdesk-backup";
+
+    private string? ReadConfig() => File.Exists(wslConfigPath) ? File.ReadAllText(wslConfigPath) : null;
+
+    private static bool UserChoseOtherMode(string? content)
+        => WslConfigFile.GetNetworkingMode(content) is { } m
+           && !m.Equals(WslConfigFile.Mirrored, StringComparison.OrdinalIgnoreCase);
+
+    /// <summary>The networking mode WSL is actually using, as reported inside the distro.</summary>
+    private async Task<string?> GetActiveModeAsync(CancellationToken ct)
+    {
+        var r = await host.RunAsync(["wslinfo", "--networking-mode"], ct: ct);
+        return r.Success ? r.StdOut.Trim() : null;
+    }
+}
+
 public static class ProvisioningPlans
 {
     /// <summary>Objective 1 on Windows: create the distro and get a node running.</summary>
@@ -89,6 +155,7 @@ public static class ProvisioningPlans
             new CreateDistroStep(wsl, distroLocation),
             new CheckDebianReleaseStep(host),
             new EnableSystemdStep(wsl, host),
+            new EnableMirroredNetworkingStep(wsl, host, WslConfigFile.DefaultPath),
             new InstallOctezStep(host, node),
             new ConfigureNodeStep(host, node, settings),
         };

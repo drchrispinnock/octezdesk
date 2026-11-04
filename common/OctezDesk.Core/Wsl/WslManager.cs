@@ -58,9 +58,16 @@ public sealed class WslManager
         }
     }
 
-    public async Task<IReadOnlyList<string>> ListDistrosAsync(CancellationToken ct = default)
+    public Task<IReadOnlyList<string>> ListDistrosAsync(CancellationToken ct = default)
+        => ListAsync(["--list", "--quiet"], ct);
+
+    /// <summary>Distros that are running now. Empty when none are (wsl.exe then exits non-zero).</summary>
+    public Task<IReadOnlyList<string>> ListRunningDistrosAsync(CancellationToken ct = default)
+        => ListAsync(["--list", "--running", "--quiet"], ct);
+
+    private static async Task<IReadOnlyList<string>> ListAsync(string[] args, CancellationToken ct)
     {
-        var r = await WslAsync(["--list", "--quiet"], ct: ct);
+        var r = await WslAsync(args, ct: ct);
         if (!r.Success) return [];
         return r.StdOut
             .Split('\n')
@@ -79,6 +86,10 @@ public sealed class WslManager
         (await WslAsync(["--install", BaseImage, "--name", DistroName, "--location", location, "--no-launch"], onLine, ct))
             .EnsureSuccess($"Installing WSL distro {DistroName}");
     }
+
+    /// <summary>Stops WSL's VM and every distro in it, so that .wslconfig changes take effect.</summary>
+    public static async Task ShutdownAsync(CancellationToken ct = default)
+        => (await WslAsync(["--shutdown"], ct: ct)).EnsureSuccess("wsl --shutdown");
 
     public async Task TerminateAsync(CancellationToken ct = default)
         => await WslAsync(["--terminate", DistroName], ct: ct);
