@@ -23,6 +23,7 @@
         <local:StepStatusBrushConverter x:Key="StepBrush" />
         <BooleanToVisibilityConverter x:Key="BoolToVisibility" />
         <local:NullToCollapsedConverter x:Key="NullToCollapsed" />
+        <local:InverseBoolConverter x:Key="InverseBool" />
         <local:KeyTypeLabelConverter x:Key="KeyTypeLabel" />
 
         <!-- App icon (spec/icon.png, resized; the window and exe use Assets/OctezDesk.ico) -->

@@ -181,7 +181,7 @@ public partial class BakingKeysResultViewModel : ObservableObject
     private bool _canRegister;
 
     [ObservableProperty]
-    [NotifyCanExecuteChangedFor(nameof(RegisterCommand), nameof(RefreshCommand))]
+    [NotifyCanExecuteChangedFor(nameof(RegisterCommand), nameof(RefreshCommand), nameof(UnstakeCommand), nameof(FinalizeUnstakeCommand))]
     private bool _isBusy;
 
     [ObservableProperty] private string? _errors;
@@ -203,6 +203,8 @@ public partial class BakingKeysResultViewModel : ObservableObject
     private void ShowStatus(MasterAccountStatus? s)
     {
         CanRegister = false;
+        CanUnstake = false;
+        CanFinalize = false;
         if (s is null)
         {
             NextStepsIntro = "Couldn't read the master key's state from the node. It may still be starting; try Refresh in a moment.";
@@ -231,7 +233,92 @@ public partial class BakingKeysResultViewModel : ObservableObject
             NextStepsIntro = "The master key has funds. Register it as a baker" + (_hasCompanion ? ", with its companion key:" : ":");
             CanRegister = true;
         }
+        if (s.UnstakedFrozenMutez > 0)
+            lines.Add($"Unstaking: {Tez(s.UnstakedFrozenMutez)}, frozen for a few cycles. You can withdraw it here once it's released.");
+        if (s.UnstakedFinalizableMutez > 0)
+            lines.Add($"Ready to withdraw: {Tez(s.UnstakedFinalizableMutez)} has finished unstaking.");
         Status = lines;
+
+        _staked = s.StakedMutez;
+        CanUnstake = s.StakedMutez > 0;
+        CanFinalize = s.UnstakedFinalizableMutez > 0;
+        FinalizeLabel = $"Withdraw {Tez(s.UnstakedFinalizableMutez)}";
+    }
+
+    // ---- Unstaking (master key only) ----
+
+    private long _staked;
+
+    /// <summary>The master key has stake to unstake: shows the Unstake panel.</summary>
+    [ObservableProperty]
+    [NotifyCanExecuteChangedFor(nameof(UnstakeCommand))]
+    private bool _canUnstake;
+
+    [ObservableProperty]
+    [NotifyCanExecuteChangedFor(nameof(FinalizeUnstakeCommand))]
+    private bool _canFinalize;
+
+    [ObservableProperty] private string _finalizeLabel = "Withdraw";
+
+    [ObservableProperty] private string _unstakeAmount = "";
+
+    /// <summary>Unstake the whole stake ("everything"), rather than <see cref="UnstakeAmount"/>.</summary>
+    [ObservableProperty] private bool _unstakeEverything;
+
+    public string UnstakeHint =>
+        $"Unstaked tez stay frozen for a few cycles, then you withdraw them here. With less than {FundingSettings.MinimumStake:N0} ꜩ staked, " +
+        "the baker loses its baking rights a few cycles later.";
+
+    private bool CanRunUnstake() => CanUnstake && !IsBusy;
+
+    [RelayCommand(CanExecute = nameof(CanRunUnstake))]
+    private async Task UnstakeAsync()
+    {
+        Errors = null;
+        long? mutez = null;
+        if (!UnstakeEverything)
+        {
+            if (TezAmount.ValidateUnstake(UnstakeAmount, _staked) is { } problem) { Errors = problem; return; }
+            mutez = TezAmount.TryParse(UnstakeAmount);
+        }
+
+        var what = mutez is { } m ? $"{TezAmount.Format(m)} ꜩ" : $"all {Tez(_staked)}";
+        var left = _staked - (mutez ?? _staked);
+        var warning = left < FundingSettings.MinimumStake * TezAmount.MutezPerTez
+            ? $"\n\nThat leaves {Tez(left)} staked, below the {FundingSettings.MinimumStake:N0} ꜩ needed: the baker will lose its baking rights a few cycles from now."
+            : "";
+        if (MessageBox.Show($"Unstake {what} from the master key?{warning}", "OctezDesk",
+                MessageBoxButton.YesNo, MessageBoxImage.Question) != MessageBoxResult.Yes) return;
+
+        IsBusy = true;
+        try
+        {
+            NextStepsIntro = "Unstaking. This waits for the node to be bootstrapped and the operation to be included…";
+            await Task.Run(() => _main.Services.Account.UnstakeAsync(mutez));
+            UnstakeAmount = "";
+            UnstakeEverything = false;
+        }
+        catch (Exception ex) { Errors = ex.Message; }
+        finally { IsBusy = false; }
+        await RefreshAsync();
+    }
+
+    private bool CanRunFinalize() => CanFinalize && !IsBusy;
+
+    /// <summary>Moves finalizable unstaked tez to the spendable balance (<c>finalize unstake</c>).</summary>
+    [RelayCommand(CanExecute = nameof(CanRunFinalize))]
+    private async Task FinalizeUnstakeAsync()
+    {
+        IsBusy = true;
+        Errors = null;
+        try
+        {
+            NextStepsIntro = "Withdrawing the unstaked tez…";
+            await Task.Run(() => _main.Services.Account.FinalizeUnstakeAsync());
+        }
+        catch (Exception ex) { Errors = ex.Message; }
+        finally { IsBusy = false; }
+        await RefreshAsync();
     }
 
     private bool CanRunRegister() => CanRegister && !IsBusy;

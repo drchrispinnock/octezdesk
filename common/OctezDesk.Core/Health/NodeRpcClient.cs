@@ -86,6 +86,14 @@ public sealed class NodeRpcClient(Func<string, CancellationToken, Task<string>> 
     public async Task<long> GetStakedBalanceAsync(string address, CancellationToken ct = default)
         => await GetMutezAsync($"chains/main/blocks/head/context/contracts/{address}/staked_balance", ct);
 
+    /// <summary>Unstaked tez still frozen (they can still be slashed), in mutez.</summary>
+    public async Task<long> GetUnstakedFrozenBalanceAsync(string address, CancellationToken ct = default)
+        => await GetMutezAsync($"chains/main/blocks/head/context/contracts/{address}/unstaked_frozen_balance", ct);
+
+    /// <summary>Unstaked tez that <c>finalize unstake</c> can move to the spendable balance, in mutez.</summary>
+    public async Task<long> GetUnstakedFinalizableBalanceAsync(string address, CancellationToken ct = default)
+        => await GetMutezAsync($"chains/main/blocks/head/context/contracts/{address}/unstaked_finalizable_balance", ct);
+
     /// <summary>
     /// True if <paramref name="address"/> is registered as a delegate. The node answers with a
     /// <c>delegate.not_registered</c> error otherwise, which the transport reports as a failure.

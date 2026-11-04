@@ -72,7 +72,7 @@ public sealed class WslKeepAlive(string distroName) : IDisposable
         Release();
         lock (_lock)
         {
-            _job?.Dispose();
+            if (OperatingSystem.IsWindows()) _job?.Dispose(); // only ever created on Windows
             _job = null;
         }
     }
