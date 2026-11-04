@@ -1,0 +1,92 @@
+<UserControl x:Class="OctezDesk.Win.Views.BakingKeysView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:views="clr-namespace:OctezDesk.Win.Views">
+    <UserControl.Resources>
+        <Style x:Key="Option" TargetType="RadioButton" BasedOn="{StaticResource {x:Type RadioButton}}">
+            <Setter Property="GroupName" Value="KeySetup" />
+            <Setter Property="FontWeight" Value="SemiBold" />
+        </Style>
+        <Style x:Key="OptionHint" TargetType="TextBlock" BasedOn="{StaticResource Hint}">
+            <Setter Property="Margin" Value="28,0,0,14" />
+        </Style>
+    </UserControl.Resources>
+
+    <DockPanel>
+        <Border DockPanel.Dock="Bottom" Style="{StaticResource Footer}">
+            <DockPanel>
+                <StackPanel DockPanel.Dock="Right" Orientation="Horizontal">
+                    <Button Content="Back" MinWidth="96" Command="{Binding BackCommand}" />
+                    <Button Content="{Binding NextLabel}" MinWidth="96" Margin="8,0,0,0" IsDefault="True"
+                            Style="{DynamicResource AccentButtonStyle}" Command="{Binding NextCommand}" />
+                </StackPanel>
+                <TextBlock Style="{StaticResource ErrorText}" VerticalAlignment="Center" Margin="0,0,16,0" Text="{Binding Errors}" />
+            </DockPanel>
+        </Border>
+
+        <ScrollViewer VerticalScrollBarVisibility="Auto">
+            <StackPanel>
+                <views:WizardSteps Current="3" Visibility="{Binding InWizard, Converter={StaticResource BoolToVisibility}}" />
+                <TextBlock Style="{StaticResource PageTitle}" Text="Baker" />
+                <TextBlock Style="{StaticResource PageSubtitle}"
+                           Text="To bake, OctezDesk creates keys in this PC's Octez wallet and runs the baker. If you only want to run a node, keep the first option." />
+
+                <Border Style="{StaticResource Card}">
+                    <StackPanel>
+                        <RadioButton Style="{StaticResource Option}" Content="Don't bake, just run a node" IsChecked="{Binding IsNoBaking}" />
+                        <TextBlock Style="{StaticResource OptionHint}" Text="No keys are created and no baker runs. You can start baking later with ☰ → Setup wizard…" />
+
+                        <!-- Master keys: test networks only. On mainnet the master key holds real funds and stays in the user's wallet. -->
+                        <StackPanel Visibility="{Binding AllowsMasterKey, Converter={StaticResource BoolToVisibility}}">
+                        <RadioButton Style="{StaticResource Option}" Content="Generate a master key" IsChecked="{Binding IsMasterKey}" />
+                        <TextBlock Style="{StaticResource OptionHint}"
+                                   Text="One key that holds the funds and also signs blocks and attestations. The simplest set-up." />
+                        <StackPanel Orientation="Horizontal" Margin="28,-6,0,14" IsEnabled="{Binding IsMasterKey}">
+                            <TextBlock Style="{StaticResource FieldLabel}" Text="Key type" />
+                            <ComboBox Width="180" ItemsSource="{Binding KeyTypes}" SelectedItem="{Binding MasterType}">
+                                <ComboBox.ItemTemplate>
+                                    <DataTemplate>
+                                        <TextBlock Text="{Binding Converter={StaticResource KeyTypeLabel}}" />
+                                    </DataTemplate>
+                                </ComboBox.ItemTemplate>
+                            </ComboBox>
+                        </StackPanel>
+
+                        <RadioButton Style="{StaticResource Option}" Content="Generate a master key and a companion key (tz4)"
+                                     IsChecked="{Binding IsMasterAndCompanion}" />
+                        <TextBlock Style="{StaticResource OptionHint}"
+                                   Text="A tz4 master key, plus the tz4 companion key that a tz4 baker needs for DAL attestations." />
+                        </StackPanel>
+
+                        <RadioButton Style="{StaticResource Option}" Content="Generate a consensus key and a companion key (tz4)"
+                                     IsChecked="{Binding IsConsensusAndCompanion}" />
+                        <TextBlock Style="{StaticResource OptionHint}" Margin="28,0,0,0"
+                                   Text="For a baker whose master key stays in another wallet or a Ledger. OctezDesk shows the public keys and proofs of possession so you can set them on chain from that wallet." />
+                        <TextBlock Style="{StaticResource Hint}" Margin="28,10,0,0"
+                                   Visibility="{Binding IsMainnet, Converter={StaticResource BoolToVisibility}}"
+                                   Text="On mainnet, keep your master key, which holds your tez, in your own wallet or a Ledger. OctezDesk only creates the keys the baker signs with, and shows you how to register them from that wallet when setup finishes." />
+                    </StackPanel>
+                </Border>
+
+                <!-- Liquidity baking toggle vote: a baker setting, so only in the wizard and when baking -->
+                <Border Style="{StaticResource Card}" Visibility="{Binding ShowsVote, Converter={StaticResource BoolToVisibility}}">
+                    <StackPanel>
+                        <TextBlock Style="{StaticResource SectionTitle}" Text="Liquidity baking vote" />
+                        <TextBlock Style="{StaticResource Hint}" Margin="0,0,0,10"
+                                   Text="Each block the baker produces carries a vote on whether liquidity baking continues. You can change it later by running the setup wizard again." />
+                        <StackPanel Orientation="Horizontal">
+                            <RadioButton GroupName="LbVote" Content="Pass" MinWidth="90" IsChecked="{Binding IsVotePass}" />
+                            <RadioButton GroupName="LbVote" Content="On" MinWidth="90" IsChecked="{Binding IsVoteOn}" />
+                            <RadioButton GroupName="LbVote" Content="Off" MinWidth="90" IsChecked="{Binding IsVoteOff}" />
+                        </StackPanel>
+                        <TextBlock Style="{StaticResource Hint}" Margin="0,8,0,0"
+                                   Text="Pass: no opinion, leaves it to other bakers. On: keep liquidity baking. Off: stop it." />
+                    </StackPanel>
+                </Border>
+
+                <TextBlock Style="{StaticResource Hint}" Margin="2,0,0,0"
+                           Text="Keys are created by octez-client inside the OctezDesk WSL distro and stored unencrypted there, so the baker can use them without a password. An existing key with the same name is reused, never overwritten." />
+            </StackPanel>
+        </ScrollViewer>
+    </DockPanel>
+</UserControl>

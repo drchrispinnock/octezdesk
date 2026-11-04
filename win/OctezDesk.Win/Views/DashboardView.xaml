@@ -1,0 +1,107 @@
+<UserControl x:Class="OctezDesk.Win.Views.DashboardView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+    <UserControl.Resources>
+        <!-- One row per service: dot, name, status, detail -->
+        <Style x:Key="ServiceName" TargetType="TextBlock">
+            <Setter Property="FontSize" Value="15" />
+            <Setter Property="FontWeight" Value="SemiBold" />
+            <Setter Property="Width" Value="110" />
+            <Setter Property="VerticalAlignment" Value="Top" />
+        </Style>
+        <Style x:Key="Dot" TargetType="Ellipse">
+            <Setter Property="Width" Value="14" />
+            <Setter Property="Height" Value="14" />
+            <Setter Property="Margin" Value="0,4,14,0" />
+            <Setter Property="VerticalAlignment" Value="Top" />
+        </Style>
+    </UserControl.Resources>
+
+    <DockPanel>
+        <!-- Header: icon, title, network badge, burger menu -->
+        <DockPanel DockPanel.Dock="Top" Margin="0,0,0,20">
+            <Menu DockPanel.Dock="Right" Background="Transparent" VerticalAlignment="Center">
+                <MenuItem Header="☰" FontSize="18" Padding="10,4" ToolTip="Menu">
+                    <MenuItem Header="Upgrade Octez" Command="{Binding UpgradeCommand}" />
+                    <MenuItem Header="Reconfigure…" Command="{Binding ReconfigureCommand}" ToolTip="Coming soon" />
+                    <MenuItem Header="Restart node" Command="{Binding RestartCommand}" />
+                    <MenuItem Header="Shut down node" Command="{Binding ShutdownCommand}" />
+                    <Separator />
+                    <MenuItem Header="Setup wizard…" Command="{Binding SetupWizardCommand}"
+                              ToolTip="Run the setup wizard again, e.g. to add baking keys or a DAL node. Finished steps are skipped." />
+                    <MenuItem Header="Baker keys…" Command="{Binding BakingKeysCommand}"
+                              ToolTip="Show the baker's keys, with their public keys and proofs of possession, or create them." />
+                    <Separator />
+                    <MenuItem Header="Keep node running after sign-in" IsCheckable="True"
+                              IsChecked="{Binding StartAtSignIn}"
+                              ToolTip="Starts the OctezDesk background helper when you sign in to Windows, so the node runs after a reboot." />
+                    <Separator />
+                    <MenuItem Header="Exit OctezDesk" Command="{Binding ExitCommand}"
+                              ToolTip="Closes this window. The node keeps running." />
+                </MenuItem>
+            </Menu>
+            <Image Source="{StaticResource AppIcon}" Width="32" Height="32" Margin="0,0,12,0" />
+            <TextBlock Style="{StaticResource PageTitle}" Margin="0" VerticalAlignment="Center" Text="OctezDesk" />
+            <Border Margin="14,0,0,0" Padding="10,3" CornerRadius="10" VerticalAlignment="Center" HorizontalAlignment="Left"
+                    Background="{DynamicResource SubtleFillColorSecondaryBrush}"
+                    Visibility="{Binding NetworkLabel, Converter={StaticResource NullToCollapsed}}">
+                <TextBlock FontSize="12" Text="{Binding NetworkLabel}" />
+            </Border>
+        </DockPanel>
+
+        <TextBlock DockPanel.Dock="Bottom" Style="{StaticResource Hint}" Margin="0,10,0,0"
+                   Text="The node keeps running in the background when you close OctezDesk." />
+
+        <!-- Services -->
+        <Border DockPanel.Dock="Top" Style="{StaticResource Card}">
+            <StackPanel>
+                <DockPanel>
+                    <Ellipse Style="{StaticResource Dot}" Fill="{Binding NodeLevel, Converter={StaticResource HealthBrush}}" />
+                    <TextBlock Style="{StaticResource ServiceName}" Text="Node" />
+                    <StackPanel>
+                        <TextBlock FontSize="15" Text="{Binding NodeSummary}" />
+                        <TextBlock Style="{StaticResource Hint}" Margin="0,2,0,0" Text="{Binding NodeDetails}" />
+                    </StackPanel>
+                </DockPanel>
+                <Separator Margin="0,12" />
+                <DockPanel>
+                    <Ellipse Style="{StaticResource Dot}" Fill="{Binding DalLevel, Converter={StaticResource HealthBrush}}" />
+                    <TextBlock Style="{StaticResource ServiceName}" Text="DAL node" />
+                    <StackPanel>
+                        <TextBlock FontSize="15" Text="{Binding DalSummary}" />
+                        <TextBlock Style="{StaticResource Hint}" Margin="0,2,0,0" Text="{Binding DalDetails}" />
+                    </StackPanel>
+                </DockPanel>
+                <Separator Margin="0,12" />
+                <DockPanel>
+                    <Ellipse Style="{StaticResource Dot}" Fill="{Binding BakerLevel, Converter={StaticResource HealthBrush}}" />
+                    <TextBlock Style="{StaticResource ServiceName}" Text="Baker" />
+                    <StackPanel>
+                        <TextBlock FontSize="15" Text="{Binding BakerSummary}" />
+                        <TextBlock Style="{StaticResource Hint}" Margin="0,2,0,0" Text="{Binding BakerDetails}" />
+                    </StackPanel>
+                </DockPanel>
+            </StackPanel>
+        </Border>
+
+        <TextBlock DockPanel.Dock="Top" Margin="0,0,0,8" Text="{Binding BusyText}"
+                   Foreground="{DynamicResource AccentTextFillColorPrimaryBrush}"
+                   Visibility="{Binding BusyText, Converter={StaticResource NullToCollapsed}}" />
+
+        <!-- Logs: one tab per service. The routine-messages filter only exists for the node log. -->
+        <DockPanel DockPanel.Dock="Top" Margin="0,4,0,6">
+            <CheckBox DockPanel.Dock="Right" Content="Show routine messages"
+                      IsChecked="{Binding SelectedLogTab.ShowRoutine}"
+                      Visibility="{Binding SelectedLogTab.HasRoutineMessages, Converter={StaticResource BoolToVisibility}, FallbackValue=Collapsed}" />
+            <TextBlock Style="{StaticResource SectionTitle}" Margin="0" VerticalAlignment="Center" Text="Logs" />
+        </DockPanel>
+        <TabControl ItemsSource="{Binding LogTabs}" SelectedItem="{Binding SelectedLogTab}">
+            <TabControl.ItemTemplate>
+                <DataTemplate><TextBlock Text="{Binding Title}" /></DataTemplate>
+            </TabControl.ItemTemplate>
+            <TabControl.ContentTemplate>
+                <DataTemplate><ListBox Style="{StaticResource LogList}" ItemsSource="{Binding Log.Lines}" /></DataTemplate>
+            </TabControl.ContentTemplate>
+        </TabControl>
+    </DockPanel>
+</UserControl>

@@ -1,0 +1,54 @@
+<UserControl x:Class="OctezDesk.Win.Views.SetupProgressView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:views="clr-namespace:OctezDesk.Win.Views">
+    <DockPanel>
+        <Border DockPanel.Dock="Bottom" Style="{StaticResource Footer}">
+            <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
+                <Button Content="Cancel" MinWidth="96" Margin="0,0,24,0" Command="{Binding CancelCommand}"
+                        ToolTip="Leave setup. If a node is already set up, you return to the main screen; nothing is undone." />
+                <Button Content="Back" MinWidth="96" Command="{Binding BackCommand}" />
+                <Button Content="Retry" MinWidth="96" Margin="8,0,0,0" Command="{Binding RetryCommand}" />
+                <Button Content="Continue" MinWidth="96" Margin="8,0,0,0" IsDefault="True"
+                        Style="{DynamicResource AccentButtonStyle}" Command="{Binding ContinueCommand}" />
+            </StackPanel>
+        </Border>
+
+        <StackPanel DockPanel.Dock="Top">
+            <views:WizardSteps Current="6" />
+            <TextBlock Style="{StaticResource PageTitle}" Text="Setting up your node" />
+            <TextBlock Style="{StaticResource PageSubtitle}" Text="{Binding Status}" />
+
+            <Border Style="{StaticResource Card}">
+                <StackPanel>
+                    <ItemsControl ItemsSource="{Binding Steps}">
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate>
+                                <DockPanel Margin="0,5">
+                                    <TextBlock DockPanel.Dock="Left" Width="26" FontSize="14" Text="{Binding Glyph}"
+                                               Foreground="{Binding Status, Converter={StaticResource StepBrush}}" />
+                                    <StackPanel>
+                                        <TextBlock Text="{Binding Title}" FontWeight="{Binding TitleWeight}" />
+                                        <TextBlock Style="{StaticResource ErrorText}" Margin="0,2,0,0" Text="{Binding Error}"
+                                                   Visibility="{Binding Error, Converter={StaticResource NullToCollapsed}}" />
+                                    </StackPanel>
+                                </DockPanel>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+
+                    <!-- Snapshot download progress, or a busy bar for other long steps -->
+                    <StackPanel Margin="26,10,0,0" Visibility="{Binding IsRunning, Converter={StaticResource BoolToVisibility}}">
+                        <ProgressBar Height="4" Maximum="100" Value="{Binding DownloadPercent}"
+                                     IsIndeterminate="{Binding IsIndeterminate}" />
+                        <TextBlock Style="{StaticResource Hint}" Margin="0,6,0,0" Text="{Binding ActivityText}" />
+                    </StackPanel>
+                </StackPanel>
+            </Border>
+        </StackPanel>
+
+        <Expander Header="Details" IsExpanded="{Binding ShowDetails}">
+            <ListBox Style="{StaticResource LogList}" Margin="0,8,0,0" MinHeight="160" ItemsSource="{Binding Log.Lines}" />
+        </Expander>
+    </DockPanel>
+</UserControl>

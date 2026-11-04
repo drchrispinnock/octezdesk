@@ -1,0 +1,60 @@
+<UserControl x:Class="OctezDesk.Win.Views.WelcomeView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:views="clr-namespace:OctezDesk.Win.Views">
+    <DockPanel>
+        <Border DockPanel.Dock="Bottom" Style="{StaticResource Footer}">
+            <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
+                <Button Content="Next" IsDefault="True" MinWidth="96" Style="{DynamicResource AccentButtonStyle}"
+                        Command="{Binding NextCommand}" />
+            </StackPanel>
+        </Border>
+
+        <ScrollViewer VerticalScrollBarVisibility="Auto">
+            <StackPanel>
+                <views:WizardSteps Current="1" />
+
+                <StackPanel Orientation="Horizontal" Margin="0,0,0,4">
+                    <Image Source="{StaticResource AppIcon}" Width="48" Height="48" Margin="0,0,16,0" />
+                    <TextBlock Style="{StaticResource PageTitle}" VerticalAlignment="Center" Text="Welcome to OctezDesk" />
+                </StackPanel>
+                <TextBlock Style="{StaticResource PageSubtitle}" Margin="0,8,0,8"
+                           Text="The control panel for Octez, the Tezos blockchain software." />
+                <TextBlock TextWrapping="Wrap" Margin="0,0,0,20"
+                           Text="To use OctezDesk on Mainnet, you'll need a funded account and access to it with a wallet capable of baking operations (like octez-client or Signet). You can use OctezDesk on the test networks and we will fund the keys for you if you want." />
+
+                <Border Style="{StaticResource Card}">
+                    <StackPanel>
+                        <TextBlock Style="{StaticResource SectionTitle}" Text="What setup does" />
+                        <TextBlock TextWrapping="Wrap" LineHeight="22">
+                            <Run Text="1.  Creates a private Linux environment (WSL) just for Octez" /><LineBreak />
+                            <Run Text="2.  Installs Octez from packages.tzinit.org" /><LineBreak />
+                            <Run Text="3.  Downloads a snapshot so the node is ready in minutes, not days" /><LineBreak />
+                            <Run Text="4.  Starts the node — it keeps running in the background" />
+                        </TextBlock>
+                    </StackPanel>
+                </Border>
+
+                <Border Style="{StaticResource Card}">
+                    <DockPanel>
+                        <Ellipse DockPanel.Dock="Left" Width="12" Height="12" VerticalAlignment="Top" Margin="0,4,12,0"
+                                 Fill="{Binding Level, Converter={StaticResource HealthBrush}}" />
+                        <StackPanel>
+                            <TextBlock Style="{StaticResource SectionTitle}" Margin="0,0,0,4" Text="This PC" />
+                            <TextBlock TextWrapping="Wrap" Text="{Binding Status}" />
+                            <TextBlock Style="{StaticResource Hint}" Margin="0,6,0,0" Text="{Binding Warning}"
+                                       Visibility="{Binding Warning, Converter={StaticResource NullToCollapsed}}" />
+                            <StackPanel Orientation="Horizontal" Margin="0,12,0,0"
+                                        Visibility="{Binding ShowActions, Converter={StaticResource BoolToVisibility}}">
+                                <Button Content="Install WSL…" Style="{DynamicResource AccentButtonStyle}" Margin="0,0,8,0"
+                                        Command="{Binding InstallWslCommand}"
+                                        Visibility="{Binding CanInstallWsl, Converter={StaticResource BoolToVisibility}}" />
+                                <Button Content="Check again" Command="{Binding CheckCommand}" />
+                            </StackPanel>
+                        </StackPanel>
+                    </DockPanel>
+                </Border>
+            </StackPanel>
+        </ScrollViewer>
+    </DockPanel>
+</UserControl>

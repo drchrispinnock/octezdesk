@@ -1,0 +1,8 @@
+﻿<Window x:Class="OctezDesk.Win.MainWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="OctezDesk" Icon="pack://application:,,,/Assets/OctezDesk.ico"
+        Height="780" Width="820" MinHeight="600" MinWidth="640"
+        WindowStartupLocation="CenterScreen">
+    <ContentControl Content="{Binding CurrentPage}" Margin="32,24,32,24" Focusable="False" />
+</Window>

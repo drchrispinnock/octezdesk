@@ -1,0 +1,11 @@
+<Solution>
+  <Folder Name="/common/">
+    <Project Path="common/OctezDesk.Core/OctezDesk.Core.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/OctezDesk.Core.Tests/OctezDesk.Core.Tests.csproj" />
+  </Folder>
+  <Folder Name="/win/">
+    <Project Path="win/OctezDesk.Win/OctezDesk.Win.csproj" />
+  </Folder>
+</Solution>
