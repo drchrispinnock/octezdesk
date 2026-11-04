@@ -17,7 +17,7 @@
   <PropertyGroup>
     <OutputType>WinExe</OutputType>
     <!-- The release script passes -p:Version; Velopack's package version must match it. -->
-    <Version>0.2.0</Version>
+    <Version>0.2.1</Version>
     <TargetFramework>net10.0-windows</TargetFramework>
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>

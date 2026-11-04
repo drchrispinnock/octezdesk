@@ -96,6 +96,7 @@ Upgrades are done with `apt`.
 - WSL stops a distro, and the node with it, about 20 s after no Windows process is attached. This has been confirmed.
   - The **GUI never holds the distro.** A separate windowless helper, the same exe run with `--keep-alive` (`win/OctezDesk.Win/KeepAliveService.cs`), holds a `sleep infinity` open through `WslKeepAlive` and re-attaches if WSL restarts.
   - There is one helper per Windows session, enforced by the mutex `Local\OctezDesk.KeepAlive`, and it can be stopped through the event `Local\OctezDesk.KeepAlive.Stop`.
+  - The helper's `wsl.exe` runs in a kill-on-close **job object** (`KillOnCloseJob`) and starts in System32. Velopack kills the helper outright on uninstall, before its hook runs, which skips the clean exit. Before 0.2.1 that left an orphaned `wsl.exe` that kept the distro attached and locked the install folder, so Setup couldn't reinstall.
   - The GUI starts the helper when needed. Exiting the GUI leaves the node running.
   - Starting the helper at sign-in (the HKCU Run key) is **opt-in**, through a ☰ menu item. Never register it silently.
 - The WSL Debian image is minimal (no wget or curl) and already boots with systemd, so `EnableSystemdStep` usually finds nothing to do.
