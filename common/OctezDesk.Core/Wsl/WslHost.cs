@@ -23,7 +23,15 @@ public sealed class WslHost(string distroName) : IOctezHost
             "--cd", "/",
             "--exec",
         };
-        args.AddRange(argv);
-        return ProcessRunner.RunAsync(WslManager.WslExe, args, stdin, onLine, WslManager.Utf8Env, ct);
+        args.AddRange(argv.Select(ToLinuxText));
+        return ProcessRunner.RunAsync(
+            WslManager.WslExe, args, stdin is null ? null : ToLinuxText(stdin), onLine, WslManager.Utf8Env, ct);
     }
+
+    /// <summary>
+    /// Converts CRLF to LF. Scripts written as C# raw string literals take the source file's line
+    /// endings, which are CRLF in a Windows checkout; sh then reads <c>set -e\r</c> and fails, and
+    /// systemd reads <c>value\r</c>. Everything sent into Linux goes through here.
+    /// </summary>
+    public static string ToLinuxText(string text) => text.Replace("\r\n", "\n");
 }
