@@ -1,0 +1,2 @@
+# C# raw string literals hold shell scripts that run in Linux; keep them LF on every checkout.
+*.cs text eol=lf
