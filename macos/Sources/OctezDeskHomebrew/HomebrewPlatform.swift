@@ -76,9 +76,23 @@ public final class HomebrewPlatform: OctezPlatform, @unchecked Sendable {
         log("$ brew update")
         try await brew(["update"], log: log).ensureSuccess("brew update")
         var names: [String] = []
-        for p in OctezPackage.allCases where await isInstalled(p) { names.append(p.rawValue) }
+        for p in OctezPackage.allCases where await isInstalled(p) { names.append(qualifiedName(p.rawValue)) }
         log("$ brew upgrade \(names.joined(separator: " "))")
         try await brew(["upgrade"] + names, log: log).ensureSuccess("brew upgrade")
+    }
+
+    /// `tap/formula`, from the tap the formula was installed from (its install receipt), else our tap.
+    /// brew refuses a bare name when several taps have the formula, e.g. a local dev tap as well.
+    public func qualifiedName(_ formula: String) -> String {
+        "\(installedTap(formula) ?? Self.tap)/\(formula)"
+    }
+
+    func installedTap(_ formula: String) -> String? {
+        let receipt = "\(prefix)/opt/\(formula)/INSTALL_RECEIPT.json"
+        guard let data = FileManager.default.contents(atPath: receipt),
+              let json = (try? JSONSerialization.jsonObject(with: data)) as? [String: Any],
+              let tap = (json["source"] as? [String: Any])?["tap"] as? String, tap.contains("/") else { return nil }
+        return tap
     }
 
     public func installedVersion(_ package: OctezPackage) async -> String? {
@@ -90,10 +104,18 @@ public final class HomebrewPlatform: OctezPlatform, @unchecked Sendable {
 
     // MARK: Services (launchd agents written by brew services)
 
-    public static func label(_ s: OctezService) -> String { "homebrew.mxcl.\(s.rawValue)" }
+    /// The launchd label `brew services` uses: `sh.brew.<formula>` from Homebrew 7, `homebrew.mxcl.<formula>`
+    /// before. Taken from the plist the formula installs, else from an agent already registered.
+    func label(_ s: OctezService) -> String {
+        let names = ["sh.brew.\(s.rawValue)", "homebrew.mxcl.\(s.rawValue)"]
+        let fm = FileManager.default
+        if let n = names.first(where: { fm.fileExists(atPath: "\(prefix)/opt/\(s.rawValue)/\($0).plist") }) { return n }
+        let agents = (serviceHome as NSString).appendingPathComponent("Library/LaunchAgents")
+        return names.first { fm.fileExists(atPath: "\(agents)/\($0).plist") } ?? names[0]
+    }
 
     func plistPath(_ s: OctezService) -> String {
-        (serviceHome as NSString).appendingPathComponent("Library/LaunchAgents/\(Self.label(s)).plist")
+        (serviceHome as NSString).appendingPathComponent("Library/LaunchAgents/\(label(s)).plist")
     }
 
     var domain: String { "gui/\(getuid())" }
@@ -102,25 +124,25 @@ public final class HomebrewPlatform: OctezPlatform, @unchecked Sendable {
 
     public func serviceState(_ s: OctezService) async -> ServiceState {
         let enabled = FileManager.default.fileExists(atPath: plistPath(s))
-        let r = await launchctl(["list", Self.label(s)])
+        let r = await launchctl(["list", label(s)])
         return ServiceState(enabled: enabled, active: r.success && r.stdout.contains("\"PID\" ="))
     }
 
-    func isLoaded(_ s: OctezService) async -> Bool { await launchctl(["list", Self.label(s)]).success }
+    func isLoaded(_ s: OctezService) async -> Bool { await launchctl(["list", label(s)]).success }
 
     public func enableAndStart(_ s: OctezService) async throws {
         let loaded = await isLoaded(s)
         if loaded, !FileManager.default.fileExists(atPath: plistPath(s)) {
-            _ = await launchctl(["bootout", "\(domain)/\(Self.label(s))"])
+            _ = await launchctl(["bootout", "\(domain)/\(label(s))"])
         }
-        try await brew(["services", "start", s.rawValue]).ensureSuccess("Starting the \(s.displayName)")
+        try await brew(["services", "start", qualifiedName(s.rawValue)]).ensureSuccess("Starting the \(s.displayName)")
         if !(await serviceState(s).active) { try await start(s) }
     }
 
     public func start(_ s: OctezService) async throws {
         guard FileManager.default.fileExists(atPath: plistPath(s)) else { return try await enableAndStart(s) }
         if await isLoaded(s) {
-            try await launchctl(["kickstart", "\(domain)/\(Self.label(s))"]).ensureSuccess("Starting the \(s.displayName)")
+            try await launchctl(["kickstart", "\(domain)/\(label(s))"]).ensureSuccess("Starting the \(s.displayName)")
         } else {
             try await bootstrap(s)
         }
@@ -130,7 +152,7 @@ public final class HomebrewPlatform: OctezPlatform, @unchecked Sendable {
     public func stop(_ s: OctezService) async throws {
         guard await isLoaded(s) else { return }
         // bootout sends SIGTERM and waits for the service's exit timeout (5 minutes for the node).
-        try await launchctl(["bootout", "\(domain)/\(Self.label(s))"]).ensureSuccess(ServiceControl.describe(s, .stop))
+        try await launchctl(["bootout", "\(domain)/\(label(s))"]).ensureSuccess(ServiceControl.describe(s, .stop))
     }
 
     public func restart(_ s: OctezService) async throws {
@@ -141,7 +163,7 @@ public final class HomebrewPlatform: OctezPlatform, @unchecked Sendable {
     public func disable(_ s: OctezService) async throws {
         let loaded = await isLoaded(s)
         guard FileManager.default.fileExists(atPath: plistPath(s)) || loaded else { return }
-        try await brew(["services", "stop", s.rawValue]).ensureSuccess("Turning off the \(s.displayName)")
+        try await brew(["services", "stop", qualifiedName(s.rawValue)]).ensureSuccess("Turning off the \(s.displayName)")
     }
 
     /// Loads the agent. Right after a bootout launchd can refuse for a moment, so this retries.

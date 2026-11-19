@@ -15,8 +15,28 @@ import OctezDeskCore
         #expect(p.prefix == "/opt/homebrew")
         #expect(p.serviceConfigPath(.baker) == "/opt/homebrew/etc/octez/octez-baker.conf")
         #expect(p.octezToolPath("octez-node") == "/opt/homebrew/bin/octez-node")
-        #expect(p.plistPath(.node) == "/Users/x/Library/LaunchAgents/homebrew.mxcl.octez-node.plist")
+        #expect(p.plistPath(.node) == "/Users/x/Library/LaunchAgents/sh.brew.octez-node.plist")
         #expect(p.statePath(".octezdesk-node.json") == "/Users/x/Library/Application Support/OctezDesk/.octezdesk-node.json")
+    }
+
+    @Test func formula_names_are_qualified_with_their_tap() throws {
+        let home = tempHome()
+        let p = HomebrewPlatform(brew: home + "/bin/brew", home: home)
+        #expect(p.qualifiedName("octez-node") == "drchrispinnock/octez/octez-node") // not installed: our tap
+        let opt = home + "/opt/octez-node"
+        try FileManager.default.createDirectory(atPath: opt, withIntermediateDirectories: true)
+        try Data(#"{"source":{"tap":"local/octez"}}"#.utf8).write(to: URL(fileURLWithPath: opt + "/INSTALL_RECEIPT.json"))
+        #expect(p.qualifiedName("octez-node") == "local/octez/octez-node")
+    }
+
+    @Test func service_label_follows_the_formulas_plist() throws {
+        let home = tempHome()
+        let p = HomebrewPlatform(brew: home + "/bin/brew", home: home)
+        #expect(p.label(.dalNode) == "sh.brew.octez-dal-node")
+        let opt = home + "/opt/octez-dal-node"
+        try FileManager.default.createDirectory(atPath: opt, withIntermediateDirectories: true)
+        FileManager.default.createFile(atPath: opt + "/homebrew.mxcl.octez-dal-node.plist", contents: Data())
+        #expect(p.label(.dalNode) == "homebrew.mxcl.octez-dal-node")
     }
 
     @Test func a_job_runs_detached_and_reports_its_result() async throws {

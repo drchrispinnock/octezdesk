@@ -20,7 +20,7 @@ The app is signed ad hoc. Set `SIGN_IDENTITY` to a Developer ID to sign it prope
 | | |
 |---|---|
 | Packages | `brew tap drchrispinnock/octez`, `brew trust`, then `brew install drchrispinnock/octez/octez-node octez-client` (and `octez-dal-node`, `octez-baker` when needed) |
-| Services | launchd agents `homebrew.mxcl.octez-*` from `brew services start`. They run as you and start whenever you log in. Stop uses `launchctl bootout`, so the service still starts at the next login. Deconfigure uses `brew services stop` |
+| Services | launchd agents from `brew services start drchrispinnock/octez/<formula>` (labelled `sh.brew.octez-*` by Homebrew 7, `homebrew.mxcl.octez-*` before). They run as you and start whenever you log in. Stop uses `launchctl bootout`, so the service still starts at the next login. Deconfigure uses `brew services stop` |
 | Settings | `$(brew --prefix)/etc/octez/octez-*.conf`. OctezDesk changes only `DATADIR` in the node's file, and writes the baker's in full, keeping a `.octezdesk-backup` of a file it didn't write |
 | Data | `~/.tezos-node`, or another directory chosen in the wizard, plus `~/.tezos-dal-node` and `~/.tezos-client` (the wallet the baker uses) |
 | Records | `~/Library/Application Support/OctezDesk/.octezdesk-{node,keys,dal}.json`, the same JSON as the Windows version |

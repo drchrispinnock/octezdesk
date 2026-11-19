@@ -30,6 +30,8 @@ Tests/OctezDeskHomebrewTests
 - **The shared logic lives in `../common`.** Provisioning steps, health rules, keys, the faucet and the records are there, so Linux gets them too. Put new logic there unless it's genuinely macOS-only. The health rules and the provisioning plan should behave the same on every platform.
 - **`HomebrewPlatform`** finds `brew` (`/opt/homebrew` or `/usr/local`), and everything runs as the logged-in user:
   - always pass its `environment`, because GUI apps get a minimal `PATH`;
+  - formulae are always named in full for brew (`qualifiedName`: the tap from the install receipt, else `drchrispinnock/octez`), because brew refuses a bare name that more than one tap has, such as a local dev tap;
+  - the launchd label is `sh.brew.<formula>` on Homebrew 7 and `homebrew.mxcl.<formula>` before; `label(_:)` reads it from the plist in `opt/<formula>`;
   - `isInstalled` checks `$(brew --prefix)/opt/<formula>/bin`, so a formula from another tap (such as a local dev tap) counts as installed;
   - service state comes from the plist in `~/Library/LaunchAgents` (enabled) and `launchctl list` (running);
   - `restart` is bootout then bootstrap, not `kickstart -k`, so the node gets SIGTERM and shuts down cleanly.
