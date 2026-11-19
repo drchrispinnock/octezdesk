@@ -62,6 +62,52 @@
                                      IsChecked="{Binding IsConsensusAndCompanion}" />
                         <TextBlock Style="{StaticResource OptionHint}" Margin="28,0,0,0"
                                    Text="For a baker whose master key stays in another wallet or a Ledger. OctezDesk shows the public keys and proofs of possession so you can set them on chain from that wallet." />
+
+                        <RadioButton Style="{StaticResource Option}" Margin="0,14,0,0" Content="Use keys on a remote signer"
+                                     IsChecked="{Binding IsRemoteSigner}" />
+                        <TextBlock Style="{StaticResource OptionHint}"
+                                   Text="For keys held by octez-signer or another remote signer. The baker asks the signer to sign, so no secret key is stored in the distro. As with a consensus key, the master key stays in your own wallet." />
+                        <Grid Margin="28,-6,0,0" Visibility="{Binding IsRemoteSigner, Converter={StaticResource BoolToVisibility}}">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="Auto" />
+                                <ColumnDefinition Width="*" />
+                            </Grid.ColumnDefinitions>
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="Auto" />
+                                <RowDefinition Height="Auto" />
+                                <RowDefinition Height="Auto" />
+                                <RowDefinition Height="Auto" />
+                                <RowDefinition Height="Auto" />
+                            </Grid.RowDefinitions>
+
+                            <TextBlock Grid.Row="0" Style="{StaticResource FieldLabel}" Text="Signer" />
+                            <StackPanel Grid.Row="0" Grid.Column="1" Orientation="Horizontal" Margin="0,0,0,8">
+                                <ComboBox Width="90" ItemsSource="{Binding Transports}" SelectedIndex="{Binding TransportIndex}"
+                                          ToolTip="How the signer listens: TCP (port 7732), HTTP (6732) or HTTPS (443)." />
+                                <TextBox Width="200" Margin="8,0,0,0" VerticalContentAlignment="Center"
+                                         Text="{Binding SignerHost, UpdateSourceTrigger=PropertyChanged}" ToolTip="Host name or IP address" />
+                                <TextBlock Text=":" Margin="4,0" VerticalAlignment="Center" />
+                                <TextBox Width="70" VerticalContentAlignment="Center"
+                                         Text="{Binding SignerPort, UpdateSourceTrigger=PropertyChanged}" ToolTip="Port" />
+                                <Button Content="List keys" Margin="8,0,0,0" Command="{Binding ListKeysCommand}" />
+                            </StackPanel>
+
+                            <TextBlock Grid.Row="1" Grid.Column="1" Style="{StaticResource Hint}" Margin="0,0,0,10" TextWrapping="Wrap"
+                                       Text="{Binding SignerStatus}" Visibility="{Binding SignerStatus, Converter={StaticResource NullToCollapsed}}" />
+
+                            <TextBlock Grid.Row="2" Style="{StaticResource FieldLabel}" Text="Consensus key" />
+                            <ComboBox Grid.Row="2" Grid.Column="1" Margin="0,0,0,8" IsEditable="True" MaxWidth="420" HorizontalAlignment="Left" MinWidth="360"
+                                      ItemsSource="{Binding SignerKeys}" Text="{Binding RemoteConsensus, UpdateSourceTrigger=PropertyChanged}"
+                                      ToolTip="The key the baker signs blocks and attestations with." />
+
+                            <TextBlock Grid.Row="3" Style="{StaticResource FieldLabel}" Text="Companion key" />
+                            <ComboBox Grid.Row="3" Grid.Column="1" Margin="0,0,0,4" IsEditable="True" MaxWidth="420" HorizontalAlignment="Left" MinWidth="360"
+                                      ItemsSource="{Binding SignerKeys}" Text="{Binding RemoteCompanion, UpdateSourceTrigger=PropertyChanged}"
+                                      ToolTip="Optional. A tz4 key for DAL attestations, used with a tz4 consensus key." />
+                            <TextBlock Grid.Row="4" Grid.Column="1" Style="{StaticResource Hint}" TextWrapping="Wrap"
+                                       Text="Optional: a tz4 companion key, which a tz4 baker needs for DAL attestations. Leave it empty if you don't have one." />
+                        </Grid>
+
                         <TextBlock Style="{StaticResource Hint}" Margin="28,10,0,0"
                                    Visibility="{Binding IsMainnet, Converter={StaticResource BoolToVisibility}}"
                                    Text="On mainnet, keep your master key, which holds your tez, in your own wallet or a Ledger. OctezDesk only creates the keys the baker signs with, and shows you how to register them from that wallet when setup finishes." />

@@ -27,6 +27,14 @@ public partial class BakingKeysViewModel : ObservableObject
         _setup = choice?.Setup;
         _masterType = choice?.MasterType ?? KeyType.Tz4;
         _vote = (baker ?? new BakerSettings()).Vote;
+        if (choice?.Remote is { } remote)
+        {
+            _transportIndex = (int)remote.Signer.Transport;
+            _signerHost = remote.Signer.Host;
+            _signerPort = remote.Signer.Port.ToString();
+            _remoteConsensus = remote.ConsensusAddress;
+            _remoteCompanion = remote.CompanionAddress ?? "";
+        }
         if (wizard is not null) IsMainnet = wizard.Settings.Network == TezosNetwork.Mainnet;
         else _ = LoadNetworkAsync();
     }
@@ -56,7 +64,7 @@ public partial class BakingKeysViewModel : ObservableObject
     /// <summary>Null means "don't bake", the default.</summary>
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(IsNoBaking), nameof(IsMasterKey), nameof(IsMasterAndCompanion), nameof(IsConsensusAndCompanion),
-        nameof(NextLabel), nameof(ShowsVote))]
+        nameof(IsRemoteSigner), nameof(NextLabel), nameof(ShowsVote))]
     [NotifyCanExecuteChangedFor(nameof(NextCommand))]
     private BakingKeySetup? _setup;
 
@@ -86,16 +94,88 @@ public partial class BakingKeysViewModel : ObservableObject
     public bool IsMasterKey { get => Setup == BakingKeySetup.MasterKey; set { if (value) Setup = BakingKeySetup.MasterKey; } }
     public bool IsMasterAndCompanion { get => Setup == BakingKeySetup.MasterAndCompanion; set { if (value) Setup = BakingKeySetup.MasterAndCompanion; } }
     public bool IsConsensusAndCompanion { get => Setup == BakingKeySetup.ConsensusAndCompanion; set { if (value) Setup = BakingKeySetup.ConsensusAndCompanion; } }
+    public bool IsRemoteSigner { get => Setup == BakingKeySetup.RemoteSigner; set { if (value) Setup = BakingKeySetup.RemoteSigner; } }
 
-    public string NextLabel => InWizard ? "Next" : "Generate";
+    public string NextLabel => InWizard ? "Next" : IsRemoteSigner ? "Import" : "Generate";
 
-    private BakingKeyChoice? Choice => Setup is { } s ? new BakingKeyChoice(s, MasterType) : null;
+    // ---- Remote signer ---------------------------------------------------------------------------
+
+    /// <summary>In <see cref="SignerTransport"/> order.</summary>
+    public IReadOnlyList<string> Transports { get; } = ["TCP", "HTTP", "HTTPS"];
+
+    [ObservableProperty] private int _transportIndex;
+    [ObservableProperty] private string _signerHost = "";
+    [ObservableProperty] private string _signerPort = SignerTransport.Tcp.DefaultPort().ToString();
+
+    /// <summary>Editable: a signer that won't list its keys still works with a typed address.</summary>
+    [ObservableProperty] private string _remoteConsensus = "";
+    [ObservableProperty] private string _remoteCompanion = "";
+
+    /// <summary>The keys the signer listed; offered in both key boxes.</summary>
+    [ObservableProperty] private IReadOnlyList<string> _signerKeys = [];
+    [ObservableProperty] private string? _signerStatus;
+
+    private SignerTransport Transport => (SignerTransport)Math.Clamp(TransportIndex, 0, 2);
+
+    /// <summary>Switching protocol moves the port to the new default, unless the user typed another.</summary>
+    partial void OnTransportIndexChanged(int oldValue, int newValue)
+    {
+        var oldDefault = ((SignerTransport)Math.Clamp(oldValue, 0, 2)).DefaultPort().ToString();
+        if (SignerPort.Trim() == oldDefault || string.IsNullOrWhiteSpace(SignerPort)) SignerPort = Transport.DefaultPort().ToString();
+    }
+
+    private RemoteSigner Signer => new(Transport, SignerHost.Trim(), int.TryParse(SignerPort, out var p) ? p : 0);
+
+    private RemoteKeys Remote => new(Signer, RemoteConsensus.Trim(),
+        string.IsNullOrWhiteSpace(RemoteCompanion) ? null : RemoteCompanion.Trim());
+
+    [RelayCommand]
+    private async Task ListKeys()
+    {
+        var signer = Signer;
+        if (signer.Validate() is { Count: > 0 } problems)
+        {
+            SignerStatus = string.Join(" ", problems);
+            return;
+        }
+        SignerStatus = $"Asking {signer} for its keys…";
+        try
+        {
+            var keys = await Task.Run(() => new RemoteSignerClient().ListKeysAsync(signer));
+            SignerKeys = keys;
+            SignerStatus = keys.Count == 0
+                ? $"The signer at {signer} holds no keys."
+                : $"The signer holds {keys.Count} key{(keys.Count == 1 ? "" : "s")}. Choose the ones to bake with.";
+            if (RemoteConsensus.Length == 0 && keys.Count > 0) RemoteConsensus = keys[0];
+        }
+        catch (RemoteSignerException ex)
+        {
+            SignerStatus = ex.Message;
+        }
+    }
+
+    private BakingKeyChoice? Choice => Setup switch
+    {
+        null => null,
+        BakingKeySetup.RemoteSigner => new BakingKeyChoice(BakingKeySetup.RemoteSigner, Remote: Remote),
+        { } s => new BakingKeyChoice(s, MasterType),
+    };
+
+    /// <summary>For a remote signer: what's wrong with the signer and keys entered, shown under the buttons.</summary>
+    private bool ChoiceIsValid()
+    {
+        Errors = Setup == BakingKeySetup.RemoteSigner && Remote.Validate() is { Count: > 0 } problems
+            ? string.Join(Environment.NewLine, problems)
+            : null;
+        return Errors is null;
+    }
 
     private bool CanNext() => !IsBusy && (InWizard || Setup is not null);
 
     [RelayCommand(CanExecute = nameof(CanNext))]
     private async Task Next()
     {
+        if (!ChoiceIsValid()) return;
         if (_wizard is not null)
         {
             _main.ShowAfterBakingKeys(_wizard.Settings, _wizard.Location, Choice, Baker);
@@ -363,19 +443,21 @@ public partial class BakingKeysResultViewModel : ObservableObject
 
         if (byRole.TryGetValue(KeyRole.Consensus, out var consensus))
         {
-            var consensusArgs = $"--consensus-key {consensus.PublicKey} --consensus-key-pop {consensus.ProofOfPossession}";
-            var companionArgs = companion is null ? "" : $" --companion-key {companion.PublicKey} --companion-key-pop {companion.ProofOfPossession}";
+            // Only tz4 keys have a proof of possession, and a remote signer may decline to make one.
+            static string Pop(string option, BakingKey k) => k.ProofOfPossession is { } pop ? $" {option} {pop}" : "";
+            var consensusArgs = $"--consensus-key {consensus.PublicKey}{Pop("--consensus-key-pop", consensus)}";
+            var companionArgs = companion is null ? "" : $" --companion-key {companion.PublicKey}{Pop("--companion-key-pop", companion)}";
             var steps = new List<KeyField>
             {
                 // One operation: register, set both keys, stake the minimum.
                 new("New baker",
                     $"octez-client register key <baker> as delegate {consensusArgs}{companionArgs} --initial-stake {FundingSettings.MinimumStake}"),
                 new("Already a baker: consensus key",
-                    $"octez-client set consensus key for <baker> to {consensus.PublicKey} --consensus-key-pop {consensus.ProofOfPossession}"),
+                    $"octez-client set consensus key for <baker> to {consensus.PublicKey}{Pop("--consensus-key-pop", consensus)}"),
             };
             if (companion is not null)
                 steps.Add(new("Already a baker: companion key",
-                    $"octez-client set companion key for <baker> to {companion.PublicKey} --companion-key-pop {companion.ProofOfPossession}"));
+                    $"octez-client set companion key for <baker> to {companion.PublicKey}{Pop("--companion-key-pop", companion)}"));
             steps.Add(new("Stake, if needed", $"octez-client stake {FundingSettings.MinimumStake} for <baker>"));
             return ($"Your baker's master key stays in your own wallet (octez-client, Signet or a Ledger). Its account needs at least " +
                     $"{FundingSettings.MinimumStake:N0} ꜩ to stake, plus a little for fees. From that wallet, replacing <baker> with your " +
