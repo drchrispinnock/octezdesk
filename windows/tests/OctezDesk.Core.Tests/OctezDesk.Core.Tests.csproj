@@ -19,7 +19,7 @@
   </ItemGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\..\common\OctezDesk.Core\OctezDesk.Core.csproj" />
+    <ProjectReference Include="..\..\src\OctezDesk.Core\OctezDesk.Core.csproj" />
   </ItemGroup>
 
 </Project>

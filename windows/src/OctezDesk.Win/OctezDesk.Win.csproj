@@ -1,7 +1,7 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk">
 
   <ItemGroup>
-    <ProjectReference Include="..\..\common\OctezDesk.Core\OctezDesk.Core.csproj" />
+    <ProjectReference Include="..\OctezDesk.Core\OctezDesk.Core.csproj" />
   </ItemGroup>
 
   <ItemGroup>
@@ -23,7 +23,7 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <UseWPF>true</UseWPF>
     <StartupObject>OctezDesk.Win.Program</StartupObject>
-    <!-- Made from spec/icon.png; see Assets/README.md -->
+    <!-- Made from assets/icon.png at the top of the repo; see Assets/README.md -->
     <ApplicationIcon>Assets\OctezDesk.ico</ApplicationIcon>
     <!-- ThemeMode (Fluent theme) is marked experimental -->
     <NoWarn>$(NoWarn);WPF0001</NoWarn>

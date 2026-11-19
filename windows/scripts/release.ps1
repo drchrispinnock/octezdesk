@@ -4,8 +4,8 @@
   publishes them as a GitHub release, which installed copies update from.
 
 .EXAMPLE
-  ./scripts/release.ps1 -Version 0.2.0              # build into artifacts/releases only
-  ./scripts/release.ps1 -Version 0.2.0 -Publish     # also create the GitHub release v0.2.0
+  ./windows/scripts/release.ps1 -Version 0.2.0              # build into artifacts/releases only
+  ./windows/scripts/release.ps1 -Version 0.2.0 -Publish     # also create the GitHub release v0.2.0
 
 .NOTES
   Needs the .NET 10 SDK and the Velopack CLI (dotnet tool install -g vpk). Publishing uses the
@@ -18,6 +18,7 @@ param(
     [switch]$Publish
 )
 $ErrorActionPreference = 'Stop'
+# windows/, the Windows build's root inside the repo; paths below are relative to it.
 $root = Split-Path $PSScriptRoot -Parent
 Set-Location $root
 
@@ -41,7 +42,7 @@ Run 'Unit tests' { dotnet test tests/OctezDesk.Core.Tests --nologo -v quiet }
 
 if (Test-Path $publishDir) { Remove-Item -Recurse -Force $publishDir }
 Run 'Publish (self-contained, win-x64)' {
-    dotnet publish win/OctezDesk.Win -c Release -r win-x64 --self-contained -p:Version=$Version -o $publishDir --nologo -v quiet
+    dotnet publish src/OctezDesk.Win -c Release -r win-x64 --self-contained -p:Version=$Version -o $publishDir --nologo -v quiet
 }
 
 New-Item -ItemType Directory -Force $releases | Out-Null
@@ -55,7 +56,7 @@ if ($LASTEXITCODE -ne 0) { Write-Host '    none found; this release has no delta
 
 $pack = @('pack', '-u', $packId, '-v', $Version, '-p', $publishDir, '-o', $releases, '-r', 'win-x64', '-c', $channel,
           '-e', 'OctezDesk.Win.exe', '--packTitle', 'OctezDesk', '--packAuthors', 'Chris Pinnock',
-          '-i', 'win\OctezDesk.Win\Assets\OctezDesk.ico', '--shortcuts', 'Desktop,StartMenuRoot')
+          '-i', 'src\OctezDesk.Win\Assets\OctezDesk.ico', '--shortcuts', 'Desktop,StartMenuRoot')
 if (Test-Path $notes) { $pack += @('--releaseNotes', $notes) }
 Run "Pack $packId $Version" { vpk @pack }
 
