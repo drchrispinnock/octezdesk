@@ -68,9 +68,6 @@ public sealed class NodeService(IOctezHost host)
     public async Task RestartAsync(CancellationToken ct = default)
         => (await host.RunAsync(["systemctl", "restart", OctezPaths.NodeService], ct: ct)).EnsureSuccess("Restarting the node");
 
-    public async Task StopAsync(CancellationToken ct = default)
-        => (await host.RunAsync(["systemctl", "stop", OctezPaths.NodeService], ct: ct)).EnsureSuccess("Stopping the node");
-
     public async Task<string?> GetInstalledVersionAsync(CancellationToken ct = default)
     {
         var r = await host.RunAsync(["dpkg-query", "-W", "-f=${Version}", "octez-node"], ct: ct);

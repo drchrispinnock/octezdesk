@@ -179,6 +179,7 @@ public sealed class GenerateBakingKeysStep(BakingKeyService keys, BakingKeyChoic
         BakingKeySetup.MasterKey => $"Generate a {choice.MasterType.Prefix()} master key",
         BakingKeySetup.MasterAndCompanion => "Generate tz4 master and companion keys",
         BakingKeySetup.ConsensusAndCompanion => "Generate tz4 consensus and companion keys",
+        BakingKeySetup.RemoteSigner => $"Use the baking keys on the remote signer {choice.Remote?.Signer}",
         _ => "Generate baking keys",
     };
 

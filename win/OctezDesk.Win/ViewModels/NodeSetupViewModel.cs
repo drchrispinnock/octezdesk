@@ -53,8 +53,7 @@ public partial class NodeSetupViewModel : ObservableObject
         _rpcPort = settings.RpcPort.ToString();
         _allowAllRpc = settings.AllowAllRpc;
         _importSnapshot = settings.ImportSnapshot;
-        _installLocation = location ?? Path.Combine(
-            Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "OctezDesk", "wsl");
+        _installLocation = location ?? MainViewModel.DefaultLocation;
         _ = RefreshSnapshotAsync();
     }
 

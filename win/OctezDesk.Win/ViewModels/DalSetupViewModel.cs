@@ -78,6 +78,7 @@ public partial class DalSetupViewModel : ObservableObject
     [RelayCommand]
     private void Back()
     {
+        if (_main.WizardStart == WizardEntry.Dal) { _main.ShowDashboard(); return; }
         _main.RememberDal(TryBuild(report: false), IsBaking);
         _main.ShowBeforeDal(_wizard.Settings, _wizard.Location, _keys, _baker);
     }

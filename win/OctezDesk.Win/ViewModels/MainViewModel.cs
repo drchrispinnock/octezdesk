@@ -4,6 +4,9 @@ using OctezDesk.Core.Octez;
 
 namespace OctezDesk.Win.ViewModels;
 
+/// <summary>The first wizard screen shown: Welcome, or Baker or DAL node from the dashboard.</summary>
+public enum WizardEntry { Welcome, Baker, Dal }
+
 /// <summary>Owns navigation between the wizard pages and the main (dashboard) screen.</summary>
 public partial class MainViewModel(AppServices services) : ObservableObject
 {
@@ -54,13 +57,25 @@ public partial class MainViewModel(AppServices services) : ObservableObject
     /// </summary>
     public async Task ShowNodeSetupFromWelcomeAsync()
     {
-        NodeSettings? settings = null;
-        BakingKeyChoice? keys = null;
-        DalSettings? dal = null;
-        BakerSettings? baker = null;
+        WizardStart = WizardEntry.Welcome;
+        var (settings, keys, dal, baker) = await LoadInstalledAsync();
+        ShowNodeSetup(settings, keys: keys);
+        RememberDal(dal, baking: keys is not null);
+        if (baker is not null) RememberBaker(baker);
+    }
+
+    /// <summary>
+    /// Where the wizard was entered. From the dashboard's "Set up baker…" or "Set up DAL node…", Back
+    /// on that first screen returns to the dashboard instead of going to the earlier screens.
+    /// </summary>
+    public WizardEntry WizardStart { get; private set; } = WizardEntry.Welcome;
+
+    /// <summary>What's installed, to prefill the wizard. All null when there's no distro yet or it can't be read.</summary>
+    private async Task<(NodeSettings? Settings, BakingKeyChoice? Keys, DalSettings? Dal, BakerSettings? Baker)> LoadInstalledAsync()
+    {
         try
         {
-            (settings, keys, dal, baker) = await Task.Run(async () =>
+            return await Task.Run(async () =>
             {
                 var s = (await Services.Node.GetConfiguredSettingsAsync())?.ToSettings();
                 if (s is not null) s = s with { ImportSnapshot = !await Services.Node.HasChainDataAsync() };
@@ -68,12 +83,45 @@ public partial class MainViewModel(AppServices services) : ObservableObject
                         await Services.Baker.GetInstalledSettingsAsync());
             });
         }
-        catch (Exception) { } // no distro yet, or unreadable: start from the defaults
-
-        ShowNodeSetup(settings, keys: keys);
-        RememberDal(dal, baking: keys is not null);
-        if (baker is not null) RememberBaker(baker);
+        catch (Exception) { return (null, null, null, null); }
     }
+
+    /// <summary>
+    /// From the dashboard: the Baker screen (then Funds, DAL node and Set up) for the node as it's
+    /// configured, without going through Welcome and Node. Setup skips the steps already done.
+    /// </summary>
+    public async Task ShowBakerSetupFromDashboardAsync()
+    {
+        var (settings, keys, dal, baker) = await LoadInstalledAsync();
+        if (settings is null) { NodeSettingsUnknown(); return; }
+        WizardStart = WizardEntry.Baker;
+        _wizardKeys = keys;
+        _wizardBaker = baker;
+        _wizardFunding = null;
+        RememberDal(dal, baking: keys is not null);
+        ShowBakingKeys(settings, DefaultLocation);
+    }
+
+    /// <summary>
+    /// From the dashboard: the DAL node screen for the node, keys and baker as they are, on by
+    /// default. Funding isn't offered on this path, so setup doesn't ask the faucet for anything.
+    /// </summary>
+    public async Task ShowDalSetupFromDashboardAsync()
+    {
+        var (settings, keys, dal, baker) = await LoadInstalledAsync();
+        if (settings is null) { NodeSettingsUnknown(); return; }
+        WizardStart = WizardEntry.Dal;
+        _wizardFunding = new FundingSettings { Fund = false, Stake = false };
+        RememberDal(dal is { Enabled: true } ? dal : (dal ?? new DalSettings()) with { Enabled = true }, baking: keys is not null);
+        ShowDalSetup(settings, DefaultLocation, keys, baker ?? new BakerSettings());
+    }
+
+    private static void NodeSettingsUnknown() => System.Windows.MessageBox.Show(
+        "OctezDesk can't read the node's settings. Use ☰ → Setup wizard… instead.", "OctezDesk");
+
+    /// <summary>Where the distro's disk goes by default. The dashboard paths pass it on unused, since the distro already exists.</summary>
+    public static string DefaultLocation => System.IO.Path.Combine(
+        Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "OctezDesk", "wsl");
 
     /// <summary>Wizard screen 3 (Baker), between Node and DAL node.</summary>
     public void ShowBakingKeys(NodeSettings settings, string location)

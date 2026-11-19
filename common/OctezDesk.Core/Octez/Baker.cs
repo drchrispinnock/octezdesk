@@ -54,6 +54,20 @@ public sealed class BakerService(IOctezHost host)
         return string.Join('\n', lines) + "\n";
     }
 
+    /// <summary>
+    /// Pure: <paramref name="defaultsFile"/> with <c>DAL_OPTIONS</c> set to bake without DAL, for
+    /// when the DAL node is turned off. Null if it already bakes without DAL (or has no such line).
+    /// </summary>
+    public static string? WithoutDal(string defaultsFile)
+    {
+        const string withoutDal = "DAL_OPTIONS=\"--without-dal\"";
+        var lines = defaultsFile.Split('\n');
+        var i = Array.FindIndex(lines, l => l.TrimStart().StartsWith("DAL_OPTIONS=", StringComparison.Ordinal));
+        if (i < 0 || lines[i].Trim() == withoutDal) return null;
+        lines[i] = withoutDal;
+        return string.Join('\n', lines);
+    }
+
     public async Task<bool> IsInstalledAsync(CancellationToken ct = default)
     {
         var r = await host.RunAsync(["dpkg-query", "-W", "-f=${Status}", OctezPaths.BakerPackage], ct: ct);

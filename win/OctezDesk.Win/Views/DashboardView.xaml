@@ -1,6 +1,7 @@
 <UserControl x:Class="OctezDesk.Win.Views.DashboardView"
              xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
-             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:octez="clr-namespace:OctezDesk.Core.Octez;assembly=OctezDesk.Core">
     <UserControl.Resources>
         <!-- One row per service: dot, name, status, detail -->
         <Style x:Key="ServiceName" TargetType="TextBlock">
@@ -25,11 +26,42 @@
                     <MenuItem Header="Upgrade Octez" Command="{Binding UpgradeCommand}" />
                     <MenuItem Header="Check for OctezDesk updates" Command="{Binding CheckForUpdatesCommand}" />
                     <MenuItem Header="Reconfigure…" Command="{Binding ReconfigureCommand}" ToolTip="Coming soon" />
-                    <MenuItem Header="Restart node" Command="{Binding RestartCommand}" />
-                    <MenuItem Header="Shut down node" Command="{Binding ShutdownCommand}" />
+                    <Separator />
+                    <MenuItem Header="Start">
+                        <MenuItem Header="Node" Command="{Binding StartServiceCommand}" CommandParameter="{x:Static octez:OctezService.Node}" />
+                        <MenuItem Header="DAL node" Command="{Binding StartServiceCommand}" CommandParameter="{x:Static octez:OctezService.DalNode}"
+                                  IsEnabled="{Binding IsDalSetUp}" />
+                        <MenuItem Header="Baker" Command="{Binding StartServiceCommand}" CommandParameter="{x:Static octez:OctezService.Baker}"
+                                  IsEnabled="{Binding IsBakerSetUp}" />
+                    </MenuItem>
+                    <MenuItem Header="Stop">
+                        <MenuItem Header="Node…" Command="{Binding StopServiceCommand}" CommandParameter="{x:Static octez:OctezService.Node}" />
+                        <MenuItem Header="DAL node…" Command="{Binding StopServiceCommand}" CommandParameter="{x:Static octez:OctezService.DalNode}"
+                                  IsEnabled="{Binding IsDalSetUp}" />
+                        <MenuItem Header="Baker…" Command="{Binding StopServiceCommand}" CommandParameter="{x:Static octez:OctezService.Baker}"
+                                  IsEnabled="{Binding IsBakerSetUp}" />
+                    </MenuItem>
+                    <MenuItem Header="Restart">
+                        <MenuItem Header="Node" Command="{Binding RestartServiceCommand}" CommandParameter="{x:Static octez:OctezService.Node}" />
+                        <MenuItem Header="DAL node" Command="{Binding RestartServiceCommand}" CommandParameter="{x:Static octez:OctezService.DalNode}"
+                                  IsEnabled="{Binding IsDalSetUp}" />
+                        <MenuItem Header="Baker" Command="{Binding RestartServiceCommand}" CommandParameter="{x:Static octez:OctezService.Baker}"
+                                  IsEnabled="{Binding IsBakerSetUp}" />
+                    </MenuItem>
+                    <MenuItem Header="Deconfigure and stop"
+                              ToolTip="Stop the DAL node or baker and don't start it again. Its data and the baking keys are kept.">
+                        <MenuItem Header="DAL node…" Command="{Binding TurnOffServiceCommand}" CommandParameter="{x:Static octez:OctezService.DalNode}"
+                                  IsEnabled="{Binding IsDalSetUp}" />
+                        <MenuItem Header="Baker…" Command="{Binding TurnOffServiceCommand}" CommandParameter="{x:Static octez:OctezService.Baker}"
+                                  IsEnabled="{Binding IsBakerSetUp}" />
+                    </MenuItem>
                     <Separator />
                     <MenuItem Header="Setup wizard…" Command="{Binding SetupWizardCommand}"
-                              ToolTip="Run the setup wizard again, e.g. to add baking keys or a DAL node. Finished steps are skipped." />
+                              ToolTip="Run the whole setup wizard again. Finished steps are skipped." />
+                    <MenuItem Header="{Binding BakerSetupLabel}" Command="{Binding BakerSetupCommand}"
+                              ToolTip="Choose baking keys and the liquidity baking vote, without going through the node settings." />
+                    <MenuItem Header="{Binding DalSetupLabel}" Command="{Binding DalSetupCommand}"
+                              ToolTip="Turn the DAL node on or off, or change its attester and ports, without going through the node settings." />
                     <MenuItem Header="Baker keys…" Command="{Binding BakingKeysCommand}"
                               ToolTip="Show the baker's keys, with their public keys and proofs of possession, or create them." />
                     <Separator />
