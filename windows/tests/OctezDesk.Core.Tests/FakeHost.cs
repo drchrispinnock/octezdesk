@@ -35,6 +35,9 @@ internal sealed class FakeHost : IOctezHost
         return Task.FromResult(new CommandResult(0, "", ""));
     }
 
+    public Task<CommandResult> FollowAsync(IReadOnlyList<string> argv, Action<string> onLine, CancellationToken ct = default)
+        => RunAsync(argv, onLine: onLine, ct: ct);
+
     public bool Ran(params string[] prefix)
         => Calls.Any(c => c.Argv.Count >= prefix.Length && c.Argv.Take(prefix.Length).SequenceEqual(prefix));
 }
