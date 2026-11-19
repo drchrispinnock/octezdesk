@@ -10,8 +10,11 @@
 .NOTES
   Needs the .NET 10 SDK and the Velopack CLI (dotnet tool install -g vpk). Publishing uses the
   GitHub CLI's token (gh auth login). Release notes are read from release-notes/<Version>.md if it
-  exists. Unsigned for now: pass signing options to vpk pack (--signParams or
-  --azureTrustedSignFile) when there's a certificate.
+  exists.
+
+  Everything is signed with the Certum certificate (scripts/signing.ps1), so SimplySign Desktop
+  must be connected. Smart App Control blocks unsigned builds: 0.2.4 shipped unsigned and its
+  OctezDesk.Win.dll was refused on start.
 #>
 param(
     [Parameter(Mandatory)][ValidatePattern('^\d+\.\d+\.\d+(-[0-9A-Za-z.]+)?$')][string]$Version,
@@ -38,7 +41,14 @@ function Run([string]$what, [scriptblock]$command) {
     if ($LASTEXITCODE -ne 0) { throw "$what failed (exit $LASTEXITCODE)" }
 }
 
-Run 'Unit tests' { dotnet test tests/OctezDesk.Core.Tests --nologo -v quiet }
+. (Join-Path $PSScriptRoot 'signing.ps1')
+$cert = Get-SigningCertificate   # fails early if SimplySign isn't connected
+$signParams = Get-SignParams $cert
+
+# Smart App Control won't load a freshly built, unsigned test DLL either, so sign it first.
+Run 'Build unit tests' { dotnet build tests/OctezDesk.Core.Tests --nologo -v quiet }
+Run 'Sign unit tests' { & (Join-Path $PSScriptRoot 'sign-tests.ps1') }
+Run 'Unit tests' { dotnet test tests/OctezDesk.Core.Tests --no-build --nologo -v quiet }
 
 if (Test-Path $publishDir) { Remove-Item -Recurse -Force $publishDir }
 Run 'Publish (self-contained, win-x64)' {
@@ -56,7 +66,10 @@ if ($LASTEXITCODE -ne 0) { Write-Host '    none found; this release has no delta
 
 $pack = @('pack', '-u', $packId, '-v', $Version, '-p', $publishDir, '-o', $releases, '-r', 'win-x64', '-c', $channel,
           '-e', 'OctezDesk.Win.exe', '--packTitle', 'OctezDesk', '--packAuthors', 'Chris Pinnock',
-          '-i', 'src\OctezDesk.Win\Assets\OctezDesk.ico', '--shortcuts', 'Desktop,StartMenuRoot')
+          '-i', 'src\OctezDesk.Win\Assets\OctezDesk.ico', '--shortcuts', 'Desktop,StartMenuRoot',
+          # vpk signs every unsigned binary in the package, and the Setup.exe and Update.exe it makes.
+          # One file per signtool call: SimplySign handles a long batch badly.
+          '--signParams', $signParams, '--signParallel', '1')
 if (Test-Path $notes) { $pack += @('--releaseNotes', $notes) }
 Run "Pack $packId $Version" { vpk @pack }
 

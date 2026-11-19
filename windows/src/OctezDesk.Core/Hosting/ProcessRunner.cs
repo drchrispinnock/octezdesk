@@ -6,16 +6,39 @@ namespace OctezDesk.Core.Hosting;
 /// <summary>Runs a local executable with an argv list, capturing (and optionally streaming) its output.</summary>
 public static class ProcessRunner
 {
+    private static readonly object JobLock = new();
+    /// <summary>A <c>KillOnCloseJob</c> holding the children started with <c>endsWithApp</c>; Windows closes it, and kills them, when this process ends.</summary>
+    private static object? _appJob;
+
+    [System.Runtime.Versioning.SupportedOSPlatform("windows")]
+    private static void EndWithApp(Process process)
+    {
+        try
+        {
+            lock (JobLock) ((Wsl.KillOnCloseJob)(_appJob ??= new Wsl.KillOnCloseJob())).Add(process);
+        }
+        catch (System.ComponentModel.Win32Exception) { } // already exited, or can't be added: it ends with its own command
+    }
+
+    /// <param name="endsWithApp">
+    /// Kill the process if this app exits or is killed before it finishes. For commands that never
+    /// end by themselves, like following a log; not for setup work, which should finish even if the
+    /// window is closed.
+    /// </param>
     public static async Task<CommandResult> RunAsync(
         string fileName,
         IEnumerable<string> args,
         string? stdin = null,
         Action<string>? onLine = null,
         IReadOnlyDictionary<string, string>? environment = null,
-        CancellationToken ct = default)
+        CancellationToken ct = default,
+        bool endsWithApp = false)
     {
         var psi = new ProcessStartInfo(fileName)
         {
+            // Never the app's own folder (the default, inherited): a child still running there, such
+            // as an orphaned wsl.exe, stops Velopack from replacing that folder, so updates fail.
+            WorkingDirectory = OperatingSystem.IsWindows() ? Environment.SystemDirectory : "/",
             UseShellExecute = false,
             CreateNoWindow = true,
             RedirectStandardInput = stdin is not null,
@@ -49,6 +72,7 @@ public static class ProcessRunner
         };
 
         process.Start();
+        if (endsWithApp && OperatingSystem.IsWindows()) EndWithApp(process);
         process.BeginOutputReadLine();
         process.BeginErrorReadLine();
 

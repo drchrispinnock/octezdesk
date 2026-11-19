@@ -13,6 +13,17 @@ public sealed class WslHost(string distroName) : IOctezHost
         string? stdin = null,
         Action<string>? onLine = null,
         CancellationToken ct = default)
+        => ProcessRunner.RunAsync(
+            WslManager.WslExe, WslArgs(argv, user), stdin is null ? null : ToLinuxText(stdin), onLine, WslManager.Utf8Env, ct);
+
+    /// <summary>
+    /// Ends with the app: otherwise a <c>tail -F</c> outlives every closed window, piling up
+    /// <c>wsl.exe</c> processes that keep the distro attached.
+    /// </summary>
+    public Task<CommandResult> FollowAsync(IReadOnlyList<string> argv, Action<string> onLine, CancellationToken ct = default)
+        => ProcessRunner.RunAsync(WslManager.WslExe, WslArgs(argv, HostUser.Root), null, onLine, WslManager.Utf8Env, ct, endsWithApp: true);
+
+    private List<string> WslArgs(IReadOnlyList<string> argv, HostUser user)
     {
         // --exec bypasses the distro's login shell, so argv reaches Linux as-is
         // (Windows-side quoting is handled by ProcessStartInfo.ArgumentList).
@@ -24,8 +35,7 @@ public sealed class WslHost(string distroName) : IOctezHost
             "--exec",
         };
         args.AddRange(argv.Select(ToLinuxText));
-        return ProcessRunner.RunAsync(
-            WslManager.WslExe, args, stdin is null ? null : ToLinuxText(stdin), onLine, WslManager.Utf8Env, ct);
+        return args;
     }
 
     /// <summary>
