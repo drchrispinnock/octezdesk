@@ -295,6 +295,7 @@ public final class HomebrewPlatform: OctezPlatform, @unchecked Sendable {
     // MARK: Logs
 
     public func follow(_ path: String, initialLines: Int, onLine: @escaping LogSink) async {
-        _ = await ProcessRunner.run("/usr/bin/tail", ["-n", "\(initialLines)", "-F", path], onLine: onLine)
+        // In-process rather than `tail -F`, which outlived the app as an orphan.
+        await FileFollower.follow(path, initialLines: initialLines, onLine: onLine)
     }
 }

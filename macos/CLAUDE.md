@@ -36,6 +36,7 @@ Tests/OctezDeskHomebrewTests
   - service state comes from the plist in `~/Library/LaunchAgents` (enabled) and `launchctl list` (running);
   - `restart` is bootout then bootstrap, not `kickstart -k`, so the node gets SIGTERM and shuts down cleanly.
 - **Jobs** (the snapshot import) are a detached `sh` wrapper that records its PID, exit status and output in `~/Library/Application Support/OctezDesk/jobs`. Nothing kills them when the app quits.
+- **Logs are followed in-process** (`FileFollower` in `../common`), not with `tail -F`: a `tail` child outlived the app as an orphan every time it quit.
 - **The UI** is plain SwiftUI with `Form`. Long work runs in `Task`s; log lines go through `LogBuffer`, which batches them onto the main thread.
 
 ## Not done yet
