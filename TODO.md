@@ -15,7 +15,7 @@
 - [x] Re-organise the source code repository to contain the windows version
 - [x] Directories for Linux and Mac
 - [ ] Linux will use the Debian or Ubuntu packages directly. Shell installer or deb package itself.
-- [ ] Mac will use the Homebrew packages directly. DMG.
+- [x] Mac will use the Homebrew packages directly. DMG.
 - [ ] Same setup routine. You could use Swift and Swift + GTK for Linux
 - [ ] Ideally want to reuse what code we can, but tricky with C#
 - [ ] We can use Claude on another machine for this

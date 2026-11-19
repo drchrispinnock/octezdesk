@@ -6,7 +6,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 OctezDesk is a desktop GUI for running Octez (the Tezos node software). It has a setup wizard and a monitoring screen. Windows comes first, then Linux, then macOS. The Windows version works (0.2.x): node, baker, DAL node, and on test networks the faucet and staking.
 
-`TODO.md` is the to-do list, copied from the user's Listful list (`OctezDesk.md` in their Listful folder), which is the master. Tick items in both when you finish them.
+`TODO.md` is the to-do list. Tick items there when you finish them.
 
 ## Layout
 
