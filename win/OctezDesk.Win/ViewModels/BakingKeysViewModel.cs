@@ -123,7 +123,8 @@ public partial class BakingKeysViewModel : ObservableObject
     [RelayCommand(CanExecute = nameof(NotBusy))]
     private void Back()
     {
-        if (_wizard is not null)
+        if (_wizard is not null && _main.WizardStart == WizardEntry.Baker) _main.ShowDashboard();
+        else if (_wizard is not null)
         {
             _main.RememberBaker(Baker);
             _main.ShowNodeSetup(_wizard.Settings, _wizard.Location, Choice);

@@ -44,7 +44,7 @@ public partial class DashboardViewModel(MainViewModel main) : ObservableObject, 
 
 
     [ObservableProperty]
-    [NotifyCanExecuteChangedFor(nameof(UpgradeCommand), nameof(StartServiceCommand), nameof(StopServiceCommand), nameof(RestartServiceCommand),nameof(SetupWizardCommand), nameof(CheckForUpdatesCommand))]
+    [NotifyCanExecuteChangedFor(nameof(UpgradeCommand), nameof(StartServiceCommand), nameof(StopServiceCommand), nameof(RestartServiceCommand),nameof(SetupWizardCommand), nameof(BakerSetupCommand), nameof(DalSetupCommand),nameof(CheckForUpdatesCommand))]
     private bool _isBusy;
 
     [ObservableProperty] private string? _busyText;
@@ -216,10 +216,25 @@ public partial class DashboardViewModel(MainViewModel main) : ObservableObject, 
     });
 
     /// <summary>True once the dashboard has seen a DAL node set up; enables its Start/Stop/Restart items.</summary>
-    [ObservableProperty] private bool _isDalSetUp;
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(DalSetupLabel))]
+    private bool _isDalSetUp;
 
     /// <summary>True once the dashboard has seen a baker set up; enables its Start/Stop/Restart items.</summary>
-    [ObservableProperty] private bool _isBakerSetUp;
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(BakerSetupLabel))]
+    private bool _isBakerSetUp;
+
+    public string BakerSetupLabel => IsBakerSetUp ? "Baker settings…" : "Set up baker…";
+    public string DalSetupLabel => IsDalSetUp ? "DAL node settings…" : "Set up DAL node…";
+
+    /// <summary>The wizard's Baker screen (then Funds, DAL node, Set up), skipping Welcome and Node.</summary>
+    [RelayCommand(CanExecute = nameof(NotBusy))]
+    private Task BakerSetup() => main.ShowBakerSetupFromDashboardAsync();
+
+    /// <summary>The wizard's DAL node screen, then Set up.</summary>
+    [RelayCommand(CanExecute = nameof(NotBusy))]
+    private Task DalSetup() => main.ShowDalSetupFromDashboardAsync();
 
     [RelayCommand(CanExecute = nameof(NotBusy))]
     private Task StartService(OctezService service) => ControlAsync(service, ServiceAction.Start);

@@ -50,7 +50,11 @@
                     </MenuItem>
                     <Separator />
                     <MenuItem Header="Setup wizard…" Command="{Binding SetupWizardCommand}"
-                              ToolTip="Run the setup wizard again, e.g. to add baking keys or a DAL node. Finished steps are skipped." />
+                              ToolTip="Run the whole setup wizard again. Finished steps are skipped." />
+                    <MenuItem Header="{Binding BakerSetupLabel}" Command="{Binding BakerSetupCommand}"
+                              ToolTip="Choose baking keys and the liquidity baking vote, without going through the node settings." />
+                    <MenuItem Header="{Binding DalSetupLabel}" Command="{Binding DalSetupCommand}"
+                              ToolTip="Turn the DAL node on or off, or change its attester and ports, without going through the node settings." />
                     <MenuItem Header="Baker keys…" Command="{Binding BakingKeysCommand}"
                               ToolTip="Show the baker's keys, with their public keys and proofs of possession, or create them." />
                     <Separator />
