@@ -48,6 +48,13 @@
                         <MenuItem Header="Baker" Command="{Binding RestartServiceCommand}" CommandParameter="{x:Static octez:OctezService.Baker}"
                                   IsEnabled="{Binding IsBakerSetUp}" />
                     </MenuItem>
+                    <MenuItem Header="Deconfigure and stop"
+                              ToolTip="Stop the DAL node or baker and don't start it again. Its data and the baking keys are kept.">
+                        <MenuItem Header="DAL node…" Command="{Binding TurnOffServiceCommand}" CommandParameter="{x:Static octez:OctezService.DalNode}"
+                                  IsEnabled="{Binding IsDalSetUp}" />
+                        <MenuItem Header="Baker…" Command="{Binding TurnOffServiceCommand}" CommandParameter="{x:Static octez:OctezService.Baker}"
+                                  IsEnabled="{Binding IsBakerSetUp}" />
+                    </MenuItem>
                     <Separator />
                     <MenuItem Header="Setup wizard…" Command="{Binding SetupWizardCommand}"
                               ToolTip="Run the whole setup wizard again. Finished steps are skipped." />

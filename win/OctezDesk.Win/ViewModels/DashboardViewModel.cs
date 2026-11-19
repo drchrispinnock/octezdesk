@@ -44,7 +44,8 @@ public partial class DashboardViewModel(MainViewModel main) : ObservableObject, 
 
 
     [ObservableProperty]
-    [NotifyCanExecuteChangedFor(nameof(UpgradeCommand), nameof(StartServiceCommand), nameof(StopServiceCommand), nameof(RestartServiceCommand),nameof(SetupWizardCommand), nameof(BakerSetupCommand), nameof(DalSetupCommand),nameof(CheckForUpdatesCommand))]
+    [NotifyCanExecuteChangedFor(nameof(UpgradeCommand), nameof(StartServiceCommand), nameof(StopServiceCommand), nameof(RestartServiceCommand),
+        nameof(TurnOffServiceCommand), nameof(SetupWizardCommand), nameof(BakerSetupCommand), nameof(DalSetupCommand), nameof(CheckForUpdatesCommand))]
     private bool _isBusy;
 
     [ObservableProperty] private string? _busyText;
@@ -252,6 +253,23 @@ public partial class DashboardViewModel(MainViewModel main) : ObservableObject, 
 
     [RelayCommand(CanExecute = nameof(NotBusy))]
     private Task RestartService(OctezService service) => ControlAsync(service, ServiceAction.Restart);
+
+    /// <summary>"Deconfigure and stop" for the DAL node or baker (<see cref="ServiceControl.TurnOffAsync"/>).</summary>
+    [RelayCommand(CanExecute = nameof(NotBusy))]
+    private Task TurnOffService(OctezService service)
+    {
+        var name = ServiceControl.DisplayName(service);
+        var question = service == OctezService.Baker
+            ? "Stop the baker and don't start it again?\n\nThe baking keys stay in the wallet, and any stake stays where it is. " +
+              "Your baker misses its rights while it's off. To bake again, use ☰ → Set up baker…"
+            : "Stop the DAL node and don't start it again?" +
+              (IsBakerSetUp ? " The baker is switched to bake without DAL, so it misses the DAL rewards." : "") +
+              "\n\nTo turn it on again, use ☰ → Set up DAL node…";
+        var answer = MessageBox.Show(question, "OctezDesk", MessageBoxButton.YesNo, MessageBoxImage.Question);
+        return answer == MessageBoxResult.Yes
+            ? RunActionAsync($"Turning off the {name}…", () => Services.Control.TurnOffAsync(service))
+            : Task.CompletedTask;
+    }
 
     private Task ControlAsync(OctezService service, ServiceAction action)
         => RunActionAsync(ServiceControl.Describe(service, action) + "…", () => Services.Control.RunAsync(service, action));

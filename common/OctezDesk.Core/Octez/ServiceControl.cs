@@ -51,4 +51,27 @@ public sealed class ServiceControl(IOctezHost host)
         };
         (await host.RunAsync(["systemctl", verb, UnitName(service)], ct: ct)).EnsureSuccess(Describe(service, action));
     }
+
+    /// <summary>
+    /// "Deconfigure and stop": stops the DAL node or baker and stops it starting with the distro,
+    /// so the dashboard shows it as not set up. Its package, data and the baking keys are kept, and
+    /// "Set up DAL node…" or "Set up baker…" turns it on again. Turning off the DAL node also
+    /// switches the baker to bake without DAL, which it can't reach any more.
+    /// </summary>
+    public async Task TurnOffAsync(OctezService service, CancellationToken ct = default)
+    {
+        if (service == OctezService.Node)
+            throw new ArgumentException("The node can't be turned off this way; stop it instead.", nameof(service));
+        (await host.RunAsync(["systemctl", "disable", "--now", UnitName(service)], ct: ct))
+            .EnsureSuccess($"Turning off the {DisplayName(service)}");
+
+        if (service == OctezService.DalNode
+            && await host.TryReadFileAsync(OctezPaths.BakerDefaultsFile, ct) is { } bakerDefaults
+            && BakerService.WithoutDal(bakerDefaults) is { } updated)
+        {
+            await host.WriteFileAsync(OctezPaths.BakerDefaultsFile, updated, ct);
+            (await host.RunAsync(["systemctl", "try-restart", OctezPaths.BakerService], ct: ct))
+                .EnsureSuccess("Restarting the baker without DAL");
+        }
+    }
 }
