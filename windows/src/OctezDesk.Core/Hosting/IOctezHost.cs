@@ -46,4 +46,10 @@ public interface IOctezHost
         string? stdin = null,
         Action<string>? onLine = null,
         CancellationToken ct = default);
+
+    /// <summary>
+    /// Runs a command that doesn't end by itself, such as <c>tail -F</c>, until <paramref name="ct"/>
+    /// is cancelled. Unlike <see cref="RunAsync"/>, it is also stopped if this app exits or is killed.
+    /// </summary>
+    Task<CommandResult> FollowAsync(IReadOnlyList<string> argv, Action<string> onLine, CancellationToken ct = default);
 }

@@ -43,7 +43,7 @@ public static class OctezHostExtensions
     /// </summary>
     public static Task<CommandResult> FollowFileAsync(
         this IOctezHost host, string path, Action<string> onLine, int initialLines = 500, CancellationToken ct = default)
-        => host.RunAsync(["tail", "-n", initialLines.ToString(), "-F", path], onLine: onLine, ct: ct);
+        => host.FollowAsync(["tail", "-n", initialLines.ToString(), "-F", path], onLine, ct);
 
     /// <summary>Runs apt-get non-interactively as root.</summary>
     public static Task<CommandResult> AptGetAsync(
