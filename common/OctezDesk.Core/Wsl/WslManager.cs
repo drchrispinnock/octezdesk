@@ -95,6 +95,15 @@ public sealed class WslManager
             .ToList();
     }
 
+    /// <summary>The name of OctezDesk's distro, or of the one setup would create (<see cref="DistroOwnership"/>).</summary>
+    public static async Task<string> FindDistroNameAsync(CancellationToken ct = default)
+    {
+        IReadOnlyList<string> existing;
+        try { existing = await ListAsync(["--list", "--quiet"], ct); }
+        catch (Win32Exception) { return DefaultDistroName; } // no wsl.exe: the wizard deals with that
+        return await DistroOwnership.ResolveNameAsync(existing, name => DistroOwnership.CheckAsync(new WslHost(name), ct));
+    }
+
     public async Task<bool> DistroExistsAsync(CancellationToken ct = default)
         => (await ListDistrosAsync(ct)).Contains(DistroName, StringComparer.OrdinalIgnoreCase);
 

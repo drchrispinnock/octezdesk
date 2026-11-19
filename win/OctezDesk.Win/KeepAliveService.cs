@@ -86,7 +86,10 @@ public static class KeepAliveService
         try
         {
             using var stop = new EventWaitHandle(false, EventResetMode.ManualReset, StopEventName);
-            var wsl = new WslManager();
+            string distroName;
+            try { distroName = WslManager.FindDistroNameAsync().GetAwaiter().GetResult(); }
+            catch (InvalidOperationException) { return 0; } // no name left for OctezDesk: nothing of ours to hold
+            var wsl = new WslManager(distroName);
             using var holder = new WslKeepAlive(wsl.DistroName);
             do
             {

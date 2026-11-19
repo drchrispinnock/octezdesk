@@ -11,7 +11,7 @@ namespace OctezDesk.Win;
 /// <summary>Shared services, created once in <see cref="App.OnStartup"/>.</summary>
 public sealed class AppServices
 {
-    public WslManager Wsl { get; } = new();
+    public WslManager Wsl { get; }
     public WslHost Host { get; }
     public NodeService Node { get; }
     public NodeMonitor Monitor { get; }
@@ -28,8 +28,10 @@ public sealed class AppServices
     /// <summary>Start, stop and restart from the dashboard's ☰ menu.</summary>
     public ServiceControl Control { get; }
 
-    public AppServices()
+    /// <param name="distroName">From <see cref="WslManager.FindDistroNameAsync"/>.</param>
+    public AppServices(string distroName)
     {
+        Wsl = new WslManager(distroName);
         Host = new WslHost(Wsl.DistroName);
         Node = new NodeService(Host);
         Monitor = new NodeMonitor(Host, Node);
@@ -59,10 +61,18 @@ public partial class App : Application
     protected override async void OnStartup(StartupEventArgs e)
     {
         base.OnStartup(e);
-        _services = new AppServices();
-        var main = new MainViewModel(_services);
-        MainWindow = new MainWindow { DataContext = main };
+        MainWindow = new MainWindow { DataContext = new { CurrentPage = "Checking installation…" } };
         MainWindow.Show();
+        string distroName;
+        try { distroName = await Task.Run(() => WslManager.FindDistroNameAsync()); }
+        catch (Exception ex)
+        {
+            MainWindow.DataContext = new { CurrentPage = $"Could not check the installation: {ex.Message}" };
+            return;
+        }
+        _services = new AppServices(distroName);
+        var main = new MainViewModel(_services);
+        MainWindow.DataContext = main;
         await main.StartAsync(forceWizard: e.Args.Contains(WizardSwitch));
     }
 

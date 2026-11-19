@@ -71,7 +71,7 @@ Upgrades are done with `apt`.
 **Provisioning (`Core/Provisioning`)** is an ordered list of `IProvisioningStep`s.
 - Each step's `IsDoneAsync` checks the *real* state of the host, so re-running after a failure or app restart resumes where it stopped. New steps must keep that property.
 - `ProvisioningPlans.WindowsNode` assembles the Windows plan:
-  1. create the distro (Debian, checked to be trixie);
+  1. create the distro (Debian, checked to be trixie) and write the marker `/etc/octezdesk-distro`. A distro of that name that OctezDesk didn't make is never changed;
   2. enable systemd through `/etc/wsl.conf`;
   3. enable WSL mirrored networking in the user's global `%UserProfile%\.wslconfig` (`EnableMirroredNetworkingStep`). It never fails setup, leaves a mode the user chose alone, and only runs `wsl --shutdown` when no other distro is running;
   4. install packages (`extrepo enable tzinit`, falling back to a manual keyring with a fingerprint check);
@@ -86,6 +86,8 @@ Upgrades are done with `apt`.
 **Configured settings are recorded in the distro.** `ConfigureNodeStep` writes `/var/tezos/.octezdesk-node.json` (`NodeSettingsRecord`). The step counts as done only if that record matches the wizard's choices, so going Back and changing the network doesn't silently keep the old config. If only ports or RPC access differ (same network and history mode), it runs `octez-node config update` and keeps the chain data, so re-running the wizard on a working node isn't a dead end. A different network or history mode replaces the config only if there's no chain data yet. A failed setup can always be left with Cancel, which goes back to the dashboard if a node is set up.
 
 **State comes from the distro, not from Windows settings.** `InstallationProbe` checks whether WSL is installed, whether the distro exists, and whether the package and `config.json` are present. It uses that to pick between the wizard and the dashboard at startup.
+
+**The distro is usually `OctezDesk`, but not always** (`Core/Wsl/DistroOwnership.cs`). At startup, the GUI and the keep-alive helper each call `WslManager.FindDistroNameAsync`. It picks the first of `OctezDesk`, `OctezDesk-2` … `OctezDesk-9` that exists and is OctezDesk's: it has the marker, or, from builds before the marker, `/var/tezos/.octezdesk-node.json` or OctezDesk's `/etc/wsl.conf`. If none is, it picks the first free name. A distro that can't be checked counts as OctezDesk's, so a WSL hiccup never makes a second one. Don't hardcode the name: use `WslManager.DistroName`.
 
 **Health (`Core/Health`):**
 - `NodeMonitor` gathers systemd state plus node RPC calls. The RPC calls run **inside the host** (`wget` to `127.0.0.1:<port>`, using the port from the node's `config.json`). They don't depend on Windows reaching the distro. The node RPC listens on `127.0.0.1` only (gossip on `0.0.0.0`), and with mirrored networking Windows tools reach it at `127.0.0.1:<port>` too (NAT-mode localhost forwarding didn't work on the dev machine; see spec/Windows.md §2.7). **Keep the RPC on localhost:** on any other address Octez applies its restrictive default ACL, which blocks `/monitor/heads/main`, and the DAL node exits. `SetNodeRpcAddressStep` repairs nodes set up by earlier builds that listened on `0.0.0.0`.

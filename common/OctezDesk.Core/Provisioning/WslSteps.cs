@@ -8,23 +8,46 @@ namespace OctezDesk.Core.Provisioning;
 /// Creates the dedicated OctezDesk distro. (We don't make the VHD sparse: current WSL disables
 /// sparse VHDs because of a data-corruption risk and only allows it with --allow-unsafe.)
 /// </summary>
-public sealed class CreateDistroStep(WslManager wsl, string location) : IProvisioningStep
+/// <remarks>
+/// The distro gets <see cref="DistroOwnership.MarkerFile"/>, which is how OctezDesk tells it apart
+/// from a distro of the same name made by something else. One made by an earlier build gets the
+/// marker added. A distro that isn't OctezDesk's is never changed.
+/// </remarks>
+public sealed class CreateDistroStep(WslManager wsl, IOctezHost host, string location) : IProvisioningStep
 {
     public string Title => $"Create WSL distro \"{wsl.DistroName}\"";
 
-    public Task<bool> IsDoneAsync(CancellationToken ct) => wsl.DistroExistsAsync(ct);
+    public async Task<bool> IsDoneAsync(CancellationToken ct)
+        => await wsl.DistroExistsAsync(ct) && await host.FileExistsAsync(DistroOwnership.MarkerFile, ct);
 
     public async Task RunAsync(Action<string> log, CancellationToken ct)
     {
-        log($"Installing {WslManager.BaseImage} into {location}");
-        try
+        if (await wsl.DistroExistsAsync(ct))
         {
-            await wsl.InstallDistroAsync(location, log, ct);
+            switch (await DistroOwnership.CheckAsync(host, ct))
+            {
+                case DistroOwner.Other:
+                    throw new InvalidOperationException(
+                        $"A WSL distro called \"{wsl.DistroName}\" already exists, and OctezDesk didn't make it, so it won't change it. " +
+                        "Close OctezDesk and open it again to use a distro with another name.");
+                case DistroOwner.Unknown:
+                    throw new InvalidOperationException(
+                        $"The WSL distro \"{wsl.DistroName}\" exists, but OctezDesk couldn't look inside it to check that it's its own. Try again.");
+            }
         }
-        catch (HostCommandException ex) when (WslErrors.Explain(ex.Message) is { } explanation)
+        else
         {
-            throw new InvalidOperationException($"{explanation}\n\nWSL said: {ex.Message}", ex);
+            log($"Installing {WslManager.BaseImage} into {location}");
+            try
+            {
+                await wsl.InstallDistroAsync(location, log, ct);
+            }
+            catch (HostCommandException ex) when (WslErrors.Explain(ex.Message) is { } explanation)
+            {
+                throw new InvalidOperationException($"{explanation}\n\nWSL said: {ex.Message}", ex);
+            }
         }
+        await host.WriteFileAsync(DistroOwnership.MarkerFile, "Created by OctezDesk. Don't delete: OctezDesk uses it to find its distro.\n", ct);
     }
 }
 
@@ -169,7 +192,7 @@ public static class ProvisioningPlans
         var dalOn = dal is { Enabled: true };
         var steps = new List<IProvisioningStep>
         {
-            new CreateDistroStep(wsl, distroLocation),
+            new CreateDistroStep(wsl, host, distroLocation),
             new CheckDebianReleaseStep(host),
             new EnableSystemdStep(wsl, host),
             new EnableMirroredNetworkingStep(wsl, host, WslConfigFile.DefaultPath),
