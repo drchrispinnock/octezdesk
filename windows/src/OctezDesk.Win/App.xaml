@@ -26,7 +26,7 @@
         <local:InverseBoolConverter x:Key="InverseBool" />
         <local:KeyTypeLabelConverter x:Key="KeyTypeLabel" />
 
-        <!-- App icon (spec/icon.png, resized; the window and exe use Assets/OctezDesk.ico) -->
+        <!-- App icon (assets/icon.png at the top of the repo, resized; the window and exe use Assets/OctezDesk.ico) -->
         <BitmapImage x:Key="AppIcon" UriSource="pack://application:,,,/Assets/icon-256.png" />
 
         <Style x:Key="PageTitle" TargetType="TextBlock">

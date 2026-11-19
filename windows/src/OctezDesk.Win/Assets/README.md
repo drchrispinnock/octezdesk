@@ -1,4 +1,4 @@
-The app icon. `spec/icon.png` (1254 px) is the source; these are made from it:
+The app icon. `assets/icon.png` at the top of the repo (1254 px) is the source; these are made from it:
 
 - `OctezDesk.ico`: the exe, window and taskbar icon, with PNG entries at 16, 20, 24, 32, 40, 48, 64, 128 and 256 px.
 - `icon-256.png`: the icon shown inside the app (Welcome page, dashboard header).
