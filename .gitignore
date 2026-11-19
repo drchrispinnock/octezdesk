@@ -4,3 +4,6 @@ obj/
 .vs/
 TestResults/
 artifacts/
+.build/
+.swiftpm/
+macos/dist/
