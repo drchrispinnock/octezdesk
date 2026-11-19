@@ -8,7 +8,8 @@ Uses the .NET 10 SDK. Run these from `windows/`; the solution file is `OctezDesk
 
 ```
 dotnet build OctezDesk.slnx
-dotnet test tests/OctezDesk.Core.Tests
+./scripts/sign-tests.ps1                          # after each build: Smart App Control blocks unsigned test DLLs
+dotnet test tests/OctezDesk.Core.Tests --no-build
 dotnet test tests/OctezDesk.Core.Tests --filter "FullyQualifiedName~HealthEvaluatorTests"   # one class
 dotnet test tests/OctezDesk.Core.Tests --filter "DisplayName~Archive_cannot_use_snapshot"  # one test
 dotnet run --project src/OctezDesk.Win
@@ -17,7 +18,8 @@ dotnet run --project src/OctezDesk.Win -- --wizard   # open the setup wizard eve
 ./scripts/release.ps1 -Version 0.2.1 -Publish    # ...and publish GitHub release v0.2.1, which installed copies update from
 ```
 
-**Releases use Velopack** (`vpk` CLI 1.2.161, matching the `Velopack` NuGet package; keep the two versions in step). The script runs the tests, publishes self-contained win-x64, downloads the previous release for a delta, then runs `vpk pack`. Bump `<Version>` in `src/OctezDesk.Win/OctezDesk.Win.csproj` to match. Release notes go in `release-notes/<version>.md`. Builds are unsigned for now. Rules:
+**Releases use Velopack** (`vpk` CLI 1.2.161, matching the `Velopack` NuGet package; keep the two versions in step). The script runs the tests, publishes self-contained win-x64, downloads the previous release for a delta, then runs `vpk pack`. Bump `<Version>` in `src/OctezDesk.Win/OctezDesk.Win.csproj` to match. Release notes go in `release-notes/<version>.md`. Rules:
+- **Everything is signed** with the Certum certificate (`scripts/signing.ps1`, the same one as Listful and Signet), so SimplySign Desktop must be connected. **Smart App Control is enforced on this PC and blocks unsigned builds**: 0.2.4 shipped unsigned, and its `OctezDesk.Win.dll` was refused on start, so it couldn't even update itself. The test build is blocked too: run `dotnet build tests/OctezDesk.Core.Tests`, `./scripts/sign-tests.ps1`, then `dotnet test tests/OctezDesk.Core.Tests --no-build`. A timestamp-server failure is transient: run it again.
 - The pack ID is **`OctezDesk.Win`**, never `OctezDesk`. Velopack installs to `%LocalAppData%\<packId>` and deletes that folder on uninstall, and `%LocalAppData%\OctezDesk\wsl` holds the node's VHDX.
 - The channel is always `win`.
 - Updates come from GitHub Releases on the public repo (`AppUpdater`). Set `OCTEZDESK_UPDATE_URL` to a folder of `vpk pack` output to test against a local feed instead. A copy run from `bin/` never updates.
@@ -101,7 +103,6 @@ Upgrades are done with `apt`.
 
 - Reconfigure. Its menu item is disabled; see spec/Windows.md §2.5.
 - A design pass on the UX: the screens are functional but use unstyled default WPF.
-- Code signing of the installer and app (SmartScreen warns "unknown publisher" until then).
 - Allowing incoming P2P connections into WSL.
 
 The open questions in spec/Windows.md §5 are still unresolved.
