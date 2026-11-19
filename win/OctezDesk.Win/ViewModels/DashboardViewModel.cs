@@ -44,7 +44,7 @@ public partial class DashboardViewModel(MainViewModel main) : ObservableObject, 
 
 
     [ObservableProperty]
-    [NotifyCanExecuteChangedFor(nameof(UpgradeCommand), nameof(RestartCommand), nameof(ShutdownCommand), nameof(SetupWizardCommand), nameof(CheckForUpdatesCommand))]
+    [NotifyCanExecuteChangedFor(nameof(UpgradeCommand), nameof(StartServiceCommand), nameof(StopServiceCommand), nameof(RestartServiceCommand),nameof(SetupWizardCommand), nameof(CheckForUpdatesCommand))]
     private bool _isBusy;
 
     [ObservableProperty] private string? _busyText;
@@ -154,6 +154,7 @@ public partial class DashboardViewModel(MainViewModel main) : ObservableObject, 
     private void ApplyDal(ServiceHealth health)
     {
         DalLevel = health.Level;
+        IsDalSetUp = health.Level is not null;
         DalSummary = health.Summary;
         DalDetails = health.Details;
     }
@@ -165,6 +166,7 @@ public partial class DashboardViewModel(MainViewModel main) : ObservableObject, 
     private void ApplyBaker(ServiceHealth health)
     {
         BakerLevel = health.Level;
+        IsBakerSetUp = health.Level is not null;
         BakerSummary = health.Summary;
         BakerDetails = health.Details;
     }
@@ -213,17 +215,31 @@ public partial class DashboardViewModel(MainViewModel main) : ObservableObject, 
         NodeLog.Log.Append(before == after ? $"Octez is already up to date ({after})." : $"Upgraded Octez {before} → {after}.");
     });
 
-    [RelayCommand(CanExecute = nameof(NotBusy))]
-    private Task Restart() => RunActionAsync("Restarting the node…", () => Services.Node.RestartAsync());
+    /// <summary>True once the dashboard has seen a DAL node set up; enables its Start/Stop/Restart items.</summary>
+    [ObservableProperty] private bool _isDalSetUp;
+
+    /// <summary>True once the dashboard has seen a baker set up; enables its Start/Stop/Restart items.</summary>
+    [ObservableProperty] private bool _isBakerSetUp;
 
     [RelayCommand(CanExecute = nameof(NotBusy))]
-    private Task Shutdown()
+    private Task StartService(OctezService service) => ControlAsync(service, ServiceAction.Start);
+
+    [RelayCommand(CanExecute = nameof(NotBusy))]
+    private Task StopService(OctezService service)
     {
-        var answer = MessageBox.Show("Stop the Octez node?", "OctezDesk", MessageBoxButton.YesNo, MessageBoxImage.Question);
-        return answer == MessageBoxResult.Yes
-            ? RunActionAsync("Stopping the node…", () => Services.Node.StopAsync())
-            : Task.CompletedTask;
+        var question = $"Stop the {ServiceControl.DisplayName(service)}?";
+        if (service == OctezService.Node && (IsBakerSetUp || IsDalSetUp))
+            question += " The baker and DAL node can't work while it's stopped.";
+        question += "\n\nIt starts again when you choose Start, or the next time WSL starts the OctezDesk distro.";
+        var answer = MessageBox.Show(question, "OctezDesk", MessageBoxButton.YesNo, MessageBoxImage.Question);
+        return answer == MessageBoxResult.Yes ? ControlAsync(service, ServiceAction.Stop) : Task.CompletedTask;
     }
+
+    [RelayCommand(CanExecute = nameof(NotBusy))]
+    private Task RestartService(OctezService service) => ControlAsync(service, ServiceAction.Restart);
+
+    private Task ControlAsync(OctezService service, ServiceAction action)
+        => RunActionAsync(ServiceControl.Describe(service, action) + "…", () => Services.Control.RunAsync(service, action));
 
     /// <summary>Opt-in: start the keep-alive helper at Windows sign-in so the node survives reboots.</summary>
     public bool StartAtSignIn

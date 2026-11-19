@@ -25,6 +25,8 @@ public sealed class AppServices
     public DalMonitor DalMonitor { get; }
     public BakerService Baker { get; }
     public BakerMonitor BakerMonitor { get; }
+    /// <summary>Start, stop and restart from the dashboard's ☰ menu.</summary>
+    public ServiceControl Control { get; }
 
     public AppServices()
     {
@@ -39,6 +41,7 @@ public sealed class AppServices
         DalMonitor = new DalMonitor(Dal);
         Baker = new BakerService(Host);
         BakerMonitor = new BakerMonitor(Baker);
+        Control = new ServiceControl(Host);
     }
 }
 
